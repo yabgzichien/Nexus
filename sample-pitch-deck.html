@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PayFlow - Pitch Deck</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a1a; line-height: 1.6; }
+    .slide { min-height: 100vh; padding: 60px 80px; display: flex; flex-direction: column; justify-content: center; page-break-after: always; }
+    .slide:nth-child(odd) { background: #ffffff; }
+    .slide:nth-child(even) { background: #f8fafc; }
+    h1 { font-size: 48px; font-weight: 800; margin-bottom: 16px; color: #0066FF; }
+    h2 { font-size: 32px; font-weight: 700; margin-bottom: 24px; color: #1a1a1a; }
+    h3 { font-size: 20px; font-weight: 600; margin-bottom: 12px; color: #374151; }
+    p { font-size: 18px; margin-bottom: 16px; color: #4b5563; }
+    .highlight { color: #0066FF; font-weight: 700; }
+    .tagline { font-size: 24px; color: #6b7280; margin-bottom: 40px; }
+    .metric { font-size: 48px; font-weight: 800; color: #0066FF; }
+    .metric-label { font-size: 14px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 40px; margin-top: 32px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-top: 32px; }
+    .card { background: white; padding: 32px; border-radius: 12px; border: 1px solid #e5e7eb; }
+    .card-blue { border-color: #0066FF; background: #eff6ff; }
+    ul { list-style: none; margin: 16px 0; }
+    li { padding: 8px 0; padding-left: 24px; position: relative; font-size: 18px; color: #4b5563; }
+    li:before { content: "✓"; position: absolute; left: 0; color: #0066FF; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin: 24px 0; }
+    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 16px; }
+    th { background: #f9fafb; font-weight: 600; color: #374151; }
+    .progress-bar { height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; margin: 8px 0; }
+    .progress-fill { height: 100%; background: #0066FF; border-radius: 4px; }
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 14px; font-weight: 600; }
+    .badge-green { background: #d1fae5; color: #065f46; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .team-member { text-align: center; }
+    .team-member h3 { margin-bottom: 4px; }
+    .team-member p { font-size: 14px; }
+    .amount { font-size: 72px; font-weight: 800; color: #0066FF; }
+    .footer { text-align: center; padding: 40px; color: #9ca3af; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<!-- Slide 1: Title -->
+<div class="slide">
+  <h1>PayFlow</h1>
+  <p class="tagline">Instant Cross-Border Payments for ASEAN SMEs</p>
+  <p style="font-size: 20px; color: #6b7280;">Seed Round — May 2026</p>
+</div>
+
+<!-- Slide 2: Problem -->
+<div class="slide">
+  <h2>The Problem</h2>
+  <p style="font-size: 24px; margin-bottom: 32px;"><span class="highlight">SME exporters lose 3-5% on every cross-border payment</span></p>
+  <ul>
+    <li>Multiple intermediary banks (3-5 hops per transaction)</li>
+    <li>Hidden FX markups averaging 2.1%</li>
+    <li>Settlement times of 3-5 business days</li>
+    <li>Lack of transparency in fee structures</li>
+  </ul>
+  <div class="card" style="margin-top: 32px; background: #fef2f2; border-color: #ef4444;">
+    <p style="color: #991b1b; font-weight: 600;">Malaysian SME exporters collectively lost RM 1.2B in payment fees in 2025</p>
+  </div>
+</div>
+
+<!-- Slide 3: Solution -->
+<div class="slide">
+  <h2>Our Solution</h2>
+  <p style="font-size: 22px; margin-bottom: 32px;"><span class="highlight">Direct bank-to-bank payment rails</span> using existing ASEAN banking corridors</p>
+  <div class="grid">
+    <div class="card card-blue">
+      <h3>⚡ < 4 Hour Settlement</h3>
+      <p>vs 3-5 days industry standard</p>
+    </div>
+    <div class="card card-blue">
+      <h3>💰 0.8% Flat Fee</h3>
+      <p>No hidden markups, full transparency</p>
+    </div>
+    <div class="card card-blue">
+      <h3>📍 Real-Time Tracking</h3>
+      <p>From sender to recipient</p>
+    </div>
+    <div class="card card-blue">
+      <h3>🔌 API-First</h3>
+      <p>Integrates with existing ERP systems</p>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 4: Market -->
+<div class="slide">
+  <h2>Market Opportunity</h2>
+  <div class="grid-3">
+    <div style="text-align: center;">
+      <div class="metric">$280B</div>
+      <div class="metric-label">ASEAN SME Export Market</div>
+    </div>
+    <div style="text-align: center;">
+      <div class="metric">$8.4B</div>
+      <div class="metric-label">Cross-border Payment Fees</div>
+    </div>
+    <div style="text-align: center;">
+      <div class="metric">900K+</div>
+      <div class="metric-label">Malaysian SME Exporters</div>
+    </div>
+  </div>
+  <div class="card" style="margin-top: 40px; text-align: center;">
+    <p style="font-size: 20px;"><span class="highlight">Growing 23% YoY</span> driven by RCEP trade expansion and digital commerce adoption</p>
+  </div>
+</div>
+
+<!-- Slide 5: Traction -->
+<div class="slide">
+  <h2>Traction</h2>
+  <div class="grid">
+    <div style="text-align: center;">
+      <div class="metric">RM 2M</div>
+      <div class="metric-label">Monthly Volume</div>
+    </div>
+    <div style="text-align: center;">
+      <div class="metric">47</div>
+      <div class="metric-label">SME Customers</div>
+    </div>
+    <div style="text-align: center;">
+      <div class="metric">94%</div>
+      <div class="metric-label">Retention Rate</div>
+    </div>
+    <div style="text-align: center;">
+      <div class="metric">3</div>
+      <div class="metric-label">ASEAN Corridors Live</div>
+    </div>
+  </div>
+  <div style="margin-top: 32px;">
+    <h3>Live Corridors:</h3>
+    <p>🇲🇾 → 🇸🇬 Malaysia-Singapore &nbsp;&nbsp;|&nbsp;&nbsp; 🇲🇾 → 🇹🇭 Malaysia-Thailand &nbsp;&nbsp;|&nbsp;&nbsp; 🇲🇾 → 🇮🇩 Malaysia-Indonesia</p>
+  </div>
+</div>
+
+<!-- Slide 6: Business Model -->
+<div class="slide">
+  <h2>Business Model</h2>
+  <table>
+    <thead>
+      <tr><th>Revenue Stream</th><th>Rate</th><th>Monthly Revenue</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Transaction Fee</td><td>0.8% of volume</td><td>RM 16,000</td></tr>
+      <tr><td>FX Spread</td><td>0.3% avg</td><td>RM 6,000</td></tr>
+      <tr><td>Premium API</td><td>RM 500/mo</td><td>RM 2,500</td></tr>
+      <tr style="font-weight: 700; background: #eff6ff;"><td>Total MRR</td><td></td><td>RM 24,500</td></tr>
+    </tbody>
+  </table>
+  <div class="grid" style="margin-top: 24px;">
+    <div class="card">
+      <h3>Unit Economics</h3>
+      <p>CAC: <span class="highlight">RM 850</span></p>
+      <p>LTV: <span class="highlight">RM 12,000</span></p>
+      <p>LTV/CAC: <span class="highlight">14x</span></p>
+    </div>
+    <div class="card">
+      <h3>Margins</h3>
+      <p>Gross Margin: <span class="highlight">72%</span></p>
+      <p>Net Margin: <span class="highlight">-15%</span> (pre-scale)</p>
+      <p>Path to profit: Q3 2027</p>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 7: Competition -->
+<div class="slide">
+  <h2>Competition</h2>
+  <table>
+    <thead>
+      <tr><th>Feature</th><th style="color: #0066FF;">PayFlow</th><th>Wise</th><th>Airwallex</th><th>Banks</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Settlement Time</td><td class="highlight">< 4 hrs</td><td>1-2 days</td><td>1 day</td><td>3-5 days</td></tr>
+      <tr><td>Fee Transparency</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td></tr>
+      <tr><td>ASEAN Focus</td><td>✅</td><td>❌</td><td>❌</td><td>✅</td></tr>
+      <tr><td>SME-Specific</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td></tr>
+      <tr><td>API Integration</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td></tr>
+    </tbody>
+  </table>
+  <div class="card" style="margin-top: 24px; background: #eff6ff; border-color: #0066FF;">
+    <p style="text-align: center; font-weight: 600; color: #1e40af;">Our Edge: Purpose-built for ASEAN SMEs with direct banking corridors</p>
+  </div>
+</div>
+
+<!-- Slide 8: Team -->
+<div class="slide">
+  <h2>Team</h2>
+  <div class="grid-3">
+    <div class="card team-member">
+      <h3>Ahmad Razak</h3>
+      <p class="highlight">CEO</p>
+      <p>Ex-GrabPay Head of Payments (5 years)</p>
+      <p>MBA, INSEAD</p>
+    </div>
+    <div class="card team-member">
+      <h3>Li Wei Tan</h3>
+      <p class="highlight">CTO</p>
+      <p>Ex-Stripe Senior Engineer</p>
+      <p>Built systems processing $2B+ annually</p>
+    </div>
+    <div class="card team-member">
+      <h3>Priya Menon</h3>
+      <p class="highlight">COO</p>
+      <p>Ex-CIMB Trade Finance VP</p>
+      <p>15 years banking experience</p>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 9: Financials -->
+<div class="slide">
+  <h2>Financial Projections</h2>
+  <table>
+    <thead>
+      <tr><th>Year</th><th>Revenue</th><th>GMV</th><th>Customers</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>2026</td><td>RM 1.2M</td><td>RM 150M</td><td>200</td></tr>
+      <tr><td>2027</td><td>RM 5.8M</td><td>RM 725M</td><td>800</td></tr>
+      <tr><td>2028</td><td>RM 18.5M</td><td>RM 2.3B</td><td>2,500</td></tr>
+    </tbody>
+  </table>
+  <div class="card" style="margin-top: 24px;">
+    <p><span class="highlight">Path to profitability:</span> Q3 2027</p>
+    <p><span class="highlight">Break-even:</span> 150 customers / RM 7.5M monthly GMV</p>
+  </div>
+</div>
+
+<!-- Slide 10: The Ask -->
+<div class="slide">
+  <h2>The Ask</h2>
+  <div style="text-align: center; margin: 40px 0;">
+    <div class="amount">RM 2M</div>
+    <p style="font-size: 24px; color: #6b7280;">Seed Round</p>
+  </div>
+  <h3>Use of Funds:</h3>
+  <div class="grid">
+    <div>
+      <div class="progress-bar"><div class="progress-fill" style="width: 40%;"></div></div>
+      <p><strong>40% — Engineering</strong><br>Expand corridors to PH, VN, MM</p>
+    </div>
+    <div>
+      <div class="progress-bar"><div class="progress-fill" style="width: 30%;"></div></div>
+      <p><strong>30% — Sales & Marketing</strong><br>SME customer acquisition</p>
+    </div>
+    <div>
+      <div class="progress-bar"><div class="progress-fill" style="width: 20%;"></div></div>
+      <p><strong>20% — Compliance</strong><br>BNM, MAS licensing</p>
+    </div>
+    <div>
+      <div class="progress-bar"><div class="progress-fill" style="width: 10%;"></div></div>
+      <p><strong>10% — Operations</strong><br>Team and infrastructure</p>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 11: Contact -->
+<div class="slide" style="background: #0066FF; color: white; text-align: center;">
+  <h1 style="color: white; font-size: 64px;">PayFlow</h1>
+  <p style="font-size: 28px; color: rgba(255,255,255,0.9); margin: 24px 0;">Instant Cross-Border Payments for ASEAN SMEs</p>
+  <div style="margin-top: 48px;">
+    <p style="color: rgba(255,255,255,0.8); font-size: 18px;">team@payflow.my</p>
+    <p style="color: rgba(255,255,255,0.8); font-size: 18px;">+60 3-1234 5678</p>
+    <p style="color: rgba(255,255,255,0.8); font-size: 18px; margin-top: 16px;">Level 20, Menara KL, Jalan Sultan Ismail, 50250 Kuala Lumpur</p>
+  </div>
+</div>
+
+</body>
+</html>

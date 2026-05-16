@@ -12,6 +12,7 @@ export interface UserProfile {
   created_at: Timestamp;
 
   // Startup-specific
+  stage?: string;
   pitch_deck_url?: string;
   tags?: StartupTags;
   quality_score?: number;
@@ -48,6 +49,22 @@ export interface Programme {
   status: "active" | "completed";
   match_threshold: number;
   created_by: string;
+  created_at: Timestamp;
+  start_date?: Timestamp;
+  end_date?: Timestamp;
+  venue?: string;
+  registration_deadline?: Timestamp;
+  capacity?: number;
+  prerequisites?: string;
+  contact_email?: string;
+}
+
+export interface ProgrammeRegistration {
+  id: string;
+  programme_id: string;
+  user_id: string;
+  role: "startup" | "mentor";
+  status: "pending" | "approved" | "rejected";
   created_at: Timestamp;
 }
 
@@ -96,4 +113,21 @@ export interface Signal {
   actor_id: string;
   timestamp: Timestamp;
   metadata: Record<string, unknown>;
+}
+
+export interface Message {
+  id: string;
+  relationship_id: string;
+  sender_id: string;
+  text: string;
+  timestamp: Timestamp;
+  read: boolean;
+}
+
+export interface ConnectionRequest {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  status: "pending" | "approved" | "rejected";
+  created_at: Timestamp;
 }

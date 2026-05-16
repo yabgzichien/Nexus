@@ -31,29 +31,63 @@ export async function POST(req: NextRequest) {
     const programme = progDoc.data();
     const threshold = programme?.match_threshold || 60;
 
-    // Get qualified startups
-    const startupsSnap = await adminDb
-      .collection("users")
+    // Get approved registered startups for this programme
+    const startupRegsSnap = await adminDb
+      .collection("programme_registrations")
+      .where("programme_id", "==", programmeId)
       .where("role", "==", "startup")
-      .where("quality_score", ">=", threshold)
+      .where("status", "==", "approved")
       .get();
 
-    const startups = startupsSnap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+    const startupIds = startupRegsSnap.docs.map((d) => d.data().user_id);
 
-    // Get all mentors
-    const mentorsSnap = await adminDb
-      .collection("users")
+    // Get approved registered mentors for this programme
+    const mentorRegsSnap = await adminDb
+      .collection("programme_registrations")
+      .where("programme_id", "==", programmeId)
       .where("role", "==", "mentor")
+      .where("status", "==", "approved")
       .get();
 
-    const mentors = mentorsSnap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+    const mentorIds = mentorRegsSnap.docs.map((d) => d.data().user_id);
+
+    if (startupIds.length === 0 || mentorIds.length === 0) {
+      return NextResponse.json({
+        error: "No approved startups or mentors registered for this programme",
+        matchCount: 0,
+      });
+    }
+
+    // Get startup profiles (filter by quality threshold)
+    const startups: Record<string, unknown>[] = [];
+    for (const startupId of startupIds) {
+      const userDoc = await adminDb.doc(`users/${startupId}`).get();
+      if (userDoc.exists) {
+        const data = userDoc.data() as Record<string, unknown>;
+        if ((data.quality_score as number) >= threshold) {
+          startups.push({ uid: startupId, ...data });
+        }
+      }
+    }
+
+    // Get mentor profiles
+    const mentors: Record<string, unknown>[] = [];
+    for (const mentorId of mentorIds) {
+      const userDoc = await adminDb.doc(`users/${mentorId}`).get();
+      if (userDoc.exists) {
+        mentors.push({ uid: mentorId, ...userDoc.data() });
+      }
+    }
 
     if (startups.length === 0 || mentors.length === 0) {
-      return NextResponse.json({ error: "No startups or mentors available", matchCount: 0 });
+      return NextResponse.json({
+        error: "No qualified startups or mentors available after filtering",
+        matchCount: 0,
+      });
     }
 
     // Build profiles summary for Gemini
-    const startupSummaries = startups.map((s: Record<string, unknown>) => ({
+    const startupSummaries = startups.map((s) => ({
       id: s.uid,
       name: s.name,
       industry: (s.tags as Record<string, unknown>)?.industry || s.industry,
@@ -63,7 +97,7 @@ export async function POST(req: NextRequest) {
       unique_value_prop: (s.tags as Record<string, unknown>)?.unique_value_prop || "",
     }));
 
-    const mentorSummaries = mentors.map((m: Record<string, unknown>) => ({
+    const mentorSummaries = mentors.map((m) => ({
       id: m.uid,
       name: m.name,
       industry: m.industry,
@@ -74,7 +108,7 @@ export async function POST(req: NextRequest) {
 
     // Integration 3: Gemini Match Generation
     const matchResult = await ai.models.generateContent({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: "user",

@@ -13,10 +13,10 @@ export default function Home() {
       if (profile.role === "admin") {
         router.push("/admin/dashboard");
       } else {
-        router.push("/dashboard");
+        router.push("/chat");
       }
     } else if (!loading && user && !profile) {
-      router.push("/auth/role-select");
+      router.push("/auth/setup");
     }
   }, [user, profile, loading, router]);
 

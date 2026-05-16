@@ -4,21 +4,19 @@ import { GoogleGenAI } from "@google/genai";
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 export async function POST(req: NextRequest) {
-  const { pitchDeckUrl, userId } = await req.json();
+  const { base64Pdf, userId } = await req.json();
 
-  if (!pitchDeckUrl || !userId) {
-    return NextResponse.json({ error: "Missing pitchDeckUrl or userId" }, { status: 400 });
+  if (!base64Pdf || !userId) {
+    return NextResponse.json({ error: "Missing base64Pdf or userId" }, { status: 400 });
   }
 
   try {
-    // Fetch the PDF from GCS
-    const pdfResponse = await fetch(pitchDeckUrl);
-    const pdfBuffer = await pdfResponse.arrayBuffer();
-    const base64Pdf = Buffer.from(pdfBuffer).toString("base64");
+    // Extract base64 data from data URL (remove "data:application/pdf;base64," prefix)
+    const base64Data = base64Pdf.split(",")[1] || base64Pdf;
 
     // Integration 1: Extract structured tags
     const extractionResult = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: "user",
@@ -26,7 +24,7 @@ export async function POST(req: NextRequest) {
             {
               inlineData: {
                 mimeType: "application/pdf",
-                data: base64Pdf,
+                data: base64Data,
               },
             },
             {
@@ -65,7 +63,7 @@ Return ONLY valid JSON, no markdown.`,
 
     // Integration 2: Quality Gate scoring
     const qualityResult = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: "user",
@@ -73,7 +71,7 @@ Return ONLY valid JSON, no markdown.`,
             {
               inlineData: {
                 mimeType: "application/pdf",
-                data: base64Pdf,
+                data: base64Data,
               },
             },
             {
@@ -147,6 +145,7 @@ Return ONLY valid JSON:
       tags,
       quality_score: quality.total,
       quality_breakdown: quality,
+      quality_summary: quality.summary,
     });
   } catch (error) {
     console.error("Extract deck error:", error);

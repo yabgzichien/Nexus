@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 export default function NavBar() {
-  const { profile, logout } = useAuth();
+  const { profile } = useAuth();
   const pathname = usePathname();
 
   if (!profile) return null;
@@ -18,10 +18,9 @@ export default function NavBar() {
         { href: "/admin/programme", label: "Programmes" },
       ]
     : [
-        { href: "/dashboard", label: "Dashboard" },
-        { href: "/matches", label: "Matches" },
-        { href: "/profile", label: "Profile" },
-        { href: "/qr", label: "QR Badge" },
+        { href: "/chat", label: "Chat" },
+        { href: "/matches", label: "Explore" },
+        { href: "/programmes", label: "Programmes" },
       ];
 
   return (
@@ -48,17 +47,18 @@ export default function NavBar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <span className="text-xs text-gray-500 hidden sm:block">
-            {profile.role === "startup" ? "🚀" : profile.role === "mentor" ? "🎯" : "📊"}{" "}
-            {profile.name}
-          </span>
-          <button
-            onClick={logout}
+        <div className="flex items-center">
+          <Link
+            href="/account"
             className="text-xs text-gray-400 hover:text-white transition-colors"
           >
-            Sign Out
-          </button>
+            {profile.role === "startup"
+              ? "🚀"
+              : profile.role === "mentor"
+              ? "🎯"
+              : "📊"}{" "}
+            {profile.name}
+          </Link>
         </div>
       </div>
     </nav>

@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users collection - authenticated users can read all, write own
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Programmes collection - authenticated users can read, admins can write
+    match /programmes/{programmeId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Relationships collection - authenticated users can read and write
+    match /relationships/{relationshipId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Milestones collection - authenticated users can read and write
+    match /milestones/{milestoneId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Signals collection - authenticated users can read and write
+    match /signals/{signalId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Messages collection - authenticated users can read and write
+    match /messages/{messageId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Connection requests collection - authenticated users can read and write
+    match /connection_requests/{requestId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Programme registrations collection - authenticated users can read and write
+    match /programme_registrations/{registrationId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+  }
+}

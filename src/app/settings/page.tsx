@@ -3,11 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-export default function ProfilePage() {
+export default function SettingsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/settings");
+    router.replace("/account");
   }, [router]);
 
   return null;

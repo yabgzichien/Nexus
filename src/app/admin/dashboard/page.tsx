@@ -48,6 +48,15 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     if (!selectedProgramme) return;
 
+    // Clear previous data
+    setRelationships([]);
+    setAtRisk([]);
+    setSelectedRelationship(null);
+    if (cyRef.current) {
+      cyRef.current.destroy();
+      cyRef.current = null;
+    }
+
     const q = query(collection(db, "relationships"), where("programme_id", "==", selectedProgramme));
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const rels = await Promise.all(
@@ -210,11 +219,19 @@ export default function AdminDashboardPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* Graph */}
-          <div className="lg:col-span-3 bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+          <div className="lg:col-span-3 bg-gray-900 border border-gray-800 rounded-lg overflow-hidden relative">
             <div ref={graphRef} className="w-full h-[500px]" />
             {relationships.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-                No relationships in this programme yet.
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-sm">
+                <div className="text-center space-y-3">
+                  <div className="text-4xl">📊</div>
+                  <p className="text-gray-400 font-medium">
+                    No relationships in this programme yet
+                  </p>
+                  <p className="text-xs text-gray-500 max-w-xs">
+                    Run &ldquo;Generate Matches&rdquo; in the Programmes page to create mentor-startup relationships.
+                  </p>
+                </div>
               </div>
             )}
           </div>

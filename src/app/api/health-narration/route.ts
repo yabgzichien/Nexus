@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
     // Integration 4: Gemini Health Narration
     const narrationResult = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: "user",
