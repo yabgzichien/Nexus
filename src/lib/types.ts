@@ -23,6 +23,11 @@ export interface UserProfile {
   expertise_areas?: string[];
   years_experience?: number;
   past_mentoring?: string;
+
+  // Embeddings (both roles)
+  embedding?: number[];
+  embedding_model?: string;
+  embedding_updated_at?: string;
 }
 
 export interface StartupTags {
