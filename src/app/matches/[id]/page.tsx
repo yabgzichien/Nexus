@@ -98,6 +98,13 @@ export default function RelationshipDetailPage() {
         body: JSON.stringify({ relationshipId }),
       });
 
+      // Re-embed with updated engagement stats (fire and forget)
+      fetch("/api/embed-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.uid }),
+      }).catch((err) => console.error("Re-embed failed:", err));
+
       setMilestones((prev) =>
         prev.map((m) =>
           m.id === milestoneId ? { ...m, status: "completed", completed_at: Timestamp.now() } : m
