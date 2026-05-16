@@ -65,8 +65,8 @@ export default function PublicProfilePage() {
         const data = receivedSnap.docs[0].data() as ConnectionRequest;
         if (data.status === "pending") {
           setPendingRequest({
-            id: receivedSnap.docs[0].id,
             ...data,
+            id: receivedSnap.docs[0].id,
           } as ConnectionRequest);
         } else {
           setConnectionStatus(data.status);
