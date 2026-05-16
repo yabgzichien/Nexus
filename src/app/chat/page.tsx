@@ -77,7 +77,7 @@ export default function ChatListPage() {
             name: "Unknown",
             role: profile.role === "startup" ? "mentor" : "startup",
             email: "",
-            bio: "",
+            description: "",
             industry: "",
           } as UserProfile;
 

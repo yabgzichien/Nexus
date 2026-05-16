@@ -82,7 +82,7 @@ export default function SetupPage() {
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [form, setForm] = useState({
     name: "",
-    bio: "",
+    description: "",
     industry: "",
     customIndustry: "",
     stage: "",
@@ -228,7 +228,7 @@ export default function SetupPage() {
         : form.expertiseAreas;
     const data: Record<string, unknown> = {
       name: form.name,
-      bio: form.bio,
+      description: form.description,
       industry: finalIndustry,
     };
 
@@ -306,11 +306,11 @@ export default function SetupPage() {
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Bio</label>
+            <label className="block text-sm text-gray-400 mb-1">Description</label>
             <textarea
-              value={form.bio}
+              value={form.description}
               onChange={(e) =>
-                setForm((prev) => ({ ...prev, bio: e.target.value }))
+                setForm((prev) => ({ ...prev, description: e.target.value }))
               }
               rows={3}
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none"

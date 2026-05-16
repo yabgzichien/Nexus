@@ -189,8 +189,8 @@ export default function PublicProfilePage() {
             </div>
           </div>
 
-          {profileData.bio && (
-            <p className="text-gray-300">{profileData.bio}</p>
+          {profileData.description && (
+            <p className="text-gray-300">{profileData.description}</p>
           )}
 
           {profileData.role === "mentor" && profileData.expertise_areas && (

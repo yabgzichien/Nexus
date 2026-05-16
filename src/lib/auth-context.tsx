@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role,
       name: user.displayName || "",
       email: user.email || "",
-      bio: "",
+      description: "",
       industry: "",
       created_at: Timestamp.now(),
     };

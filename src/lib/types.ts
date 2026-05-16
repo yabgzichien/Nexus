@@ -7,7 +7,7 @@ export interface UserProfile {
   role: UserRole;
   name: string;
   email: string;
-  bio: string;
+  description: string;
   industry: string;
   created_at: Timestamp;
 

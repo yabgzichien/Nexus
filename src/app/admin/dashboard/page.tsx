@@ -24,6 +24,7 @@ export default function AdminDashboardPage() {
   const [selectedProgramme, setSelectedProgramme] = useState<string>("");
   const [relationships, setRelationships] = useState<RelationshipWithProfiles[]>([]);
   const [selectedRelationship, setSelectedRelationship] = useState<RelationshipWithProfiles | null>(null);
+  const [selectedNodeProfile, setSelectedNodeProfile] = useState<UserProfile | null>(null);
   const [atRisk, setAtRisk] = useState<RelationshipWithProfiles[]>([]);
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export default function AdminDashboardPage() {
     setRelationships([]);
     setAtRisk([]);
     setSelectedRelationship(null);
+    setSelectedNodeProfile(null);
     if (cyRef.current) {
       cyRef.current.destroy();
       cyRef.current = null;
@@ -181,14 +183,38 @@ export default function AdminDashboardPage() {
       },
     });
 
+    cy.on("tap", "node", (evt) => {
+      const nodeId = evt.target.data("id");
+      let profile: UserProfile | undefined;
+      for (const rel of relationships) {
+        if (rel.mentor_id === nodeId) {
+          profile = rel.mentorProfile;
+          break;
+        } else if (rel.startup_id === nodeId) {
+          profile = rel.startupProfile;
+          break;
+        }
+      }
+      if (profile) {
+        setSelectedNodeProfile(profile);
+        setSelectedRelationship(null);
+      }
+    });
+
     cy.on("tap", "edge", (evt) => {
       const edgeId = evt.target.data("id");
       const rel = relationships.find((r) => r.id === edgeId);
-      if (rel) setSelectedRelationship(rel);
+      if (rel) {
+        setSelectedRelationship(rel);
+        setSelectedNodeProfile(null);
+      }
     });
 
     cy.on("tap", (evt) => {
-      if (evt.target === cy) setSelectedRelationship(null);
+      if (evt.target === cy) {
+        setSelectedRelationship(null);
+        setSelectedNodeProfile(null);
+      }
     });
 
     cyRef.current = cy;
@@ -238,8 +264,56 @@ export default function AdminDashboardPage() {
 
           {/* Side Panel */}
           <div className="space-y-4">
-            {/* Selected Relationship Detail */}
-            {selectedRelationship ? (
+            {/* Selected Detail */}
+            {selectedNodeProfile ? (
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xl">
+                    {selectedNodeProfile.role === "startup" ? "🚀" : "🎯"}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white">{selectedNodeProfile.name}</h3>
+                    <p className="text-xs text-gray-400 capitalize">{selectedNodeProfile.role} • {selectedNodeProfile.industry}</p>
+                  </div>
+                </div>
+
+                {selectedNodeProfile.description && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Description</p>
+                    <p className="text-sm text-gray-300">{selectedNodeProfile.description}</p>
+                  </div>
+                )}
+
+                {selectedNodeProfile.role === "mentor" && selectedNodeProfile.expertise_areas && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Expertise Areas</p>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedNodeProfile.expertise_areas.map((area) => (
+                        <span key={area} className="bg-blue-900/40 text-blue-300 text-[10px] px-2 py-0.5 rounded-full">
+                          {area}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedNodeProfile.role === "startup" && selectedNodeProfile.quality_score !== undefined && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Quality Score</p>
+                    <p className="text-lg font-bold text-blue-400">{selectedNodeProfile.quality_score} <span className="text-xs text-gray-500 font-normal">/ 100</span></p>
+                  </div>
+                )}
+
+                <div className="pt-2">
+                  <button
+                    onClick={() => router.push(`/view/${selectedNodeProfile.uid}`)}
+                    className="w-full bg-gray-800 hover:bg-gray-700 text-white rounded py-2 text-sm font-medium transition-colors"
+                  >
+                    View Full Profile
+                  </button>
+                </div>
+              </div>
+            ) : selectedRelationship ? (
               <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
                 <h3 className="font-medium text-sm text-gray-400">Relationship Detail</h3>
                 <div className="space-y-2">
