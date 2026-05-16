@@ -86,6 +86,52 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Fetch existing relationships to learn from health patterns
+    const relationshipsSnap = await adminDb.collection("relationships").get();
+    const relationships = relationshipsSnap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    })) as Record<string, unknown>[];
+
+    // Analyze successful vs unsuccessful matches
+    const successfulMatches: Record<string, unknown>[] = [];
+    const unsuccessfulMatches: Record<string, unknown>[] = [];
+
+    for (const rel of relationships) {
+      const healthScore = rel.health_score as number;
+      const mentorId = rel.mentor_id as string;
+      const startupId = rel.startup_id as string;
+
+      // Get mentor and startup details for this relationship
+      const [mentorDoc, startupDoc] = await Promise.all([
+        adminDb.doc(`users/${mentorId}`).get(),
+        adminDb.doc(`users/${startupId}`).get(),
+      ]);
+
+      if (!mentorDoc.exists || !startupDoc.exists) continue;
+
+      const mentorData = mentorDoc.data();
+      const startupData = startupDoc.data();
+
+      const matchSummary = {
+        mentor_industry: mentorData?.industry,
+        mentor_expertise: mentorData?.expertise_areas || [],
+        startup_industry: startupData?.tags?.industry || startupData?.industry,
+        startup_stage: startupData?.tags?.stage,
+        startup_problem: startupData?.tags?.key_problem,
+        health_score: healthScore,
+        health_trend: rel.health_trend,
+        milestones_completed: rel.milestones_completed,
+        edge_weight: rel.edge_weight,
+      };
+
+      if (healthScore >= 70) {
+        successfulMatches.push(matchSummary);
+      } else if (healthScore < 50) {
+        unsuccessfulMatches.push(matchSummary);
+      }
+    }
+
     // Build profiles summary for Gemini
     const startupSummaries = startups.map((s) => ({
       id: s.uid,
@@ -106,7 +152,40 @@ export async function POST(req: NextRequest) {
       past_mentoring: m.past_mentoring || "",
     }));
 
-    // Integration 3: Gemini Match Generation
+    // Build learning context from historical data
+    let learningContext = "";
+    
+    if (successfulMatches.length > 0) {
+      learningContext += `
+SUCCESSFUL MATCHES (Health Score >= 70):
+${JSON.stringify(successfulMatches.slice(0, 10), null, 2)}
+
+These matches worked well. Look for similar patterns:
+- Industry alignment between mentor and startup
+- Expertise areas matching the startup's key problems
+- Complementary skills and experience
+`;
+    }
+
+    if (unsuccessfulMatches.length > 0) {
+      learningContext += `
+UNSUCCESSFUL MATCHES (Health Score < 50):
+${JSON.stringify(unsuccessfulMatches.slice(0, 10), null, 2)}
+
+These matches didn't work well. Avoid similar patterns:
+- Mismatched industries without transferable expertise
+- Expertise not relevant to startup's challenges
+- Poor communication or engagement patterns
+`;
+    }
+
+    if (successfulMatches.length > 0 || unsuccessfulMatches.length > 0) {
+      learningContext += `
+Use these patterns to inform your matching decisions. Prioritize combinations similar to successful matches and avoid combinations similar to unsuccessful ones.
+`;
+    }
+
+    // Integration 3: Gemini Match Generation with learning
     const matchResult = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [
@@ -116,6 +195,7 @@ export async function POST(req: NextRequest) {
             {
               text: `You are an AI matching engine for an innovation ecosystem. Match startups with mentors based on expertise alignment, industry fit, and complementary skills.
 
+${learningContext ? `HISTORICAL MATCH DATA:\n${learningContext}\n` : ""}
 STARTUPS:
 ${JSON.stringify(startupSummaries, null, 2)}
 
@@ -138,6 +218,8 @@ Rules:
 - Prioritize expertise alignment with the startup's key problem
 - Score should reflect genuine compatibility, not just any match
 - Narratives should be specific and cite concrete overlaps
+${successfulMatches.length > 0 ? "- Learn from successful matches: prioritize similar industry/expertise combinations" : ""}
+${unsuccessfulMatches.length > 0 ? "- Avoid patterns from unsuccessful matches: don't pair mismatched industries" : ""}
 
 Return ONLY valid JSON array, no markdown.`,
             },
@@ -182,7 +264,14 @@ Return ONLY valid JSON array, no markdown.`,
 
     await batch.commit();
 
-    return NextResponse.json({ success: true, matchCount });
+    return NextResponse.json({ 
+      success: true, 
+      matchCount,
+      learning: {
+        successfulMatchesUsed: successfulMatches.length,
+        unsuccessfulMatchesUsed: unsuccessfulMatches.length,
+      }
+    });
   } catch (error) {
     console.error("Generate matches error:", error);
     return NextResponse.json({ error: "Failed to generate matches" }, { status: 500 });
