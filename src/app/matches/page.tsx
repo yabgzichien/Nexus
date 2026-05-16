@@ -24,7 +24,7 @@ export default function ExplorePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingRecommendations, setLoadingRecommendations] = useState(true);
   const [connecting, setConnecting] = useState<string | null>(null);
-  const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
+  const [connectionStatuses, setConnectionStatuses] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (!loading && !user) router.push("/");
@@ -92,19 +92,33 @@ export default function ExplorePage() {
   useEffect(() => {
     if (!user) return;
 
-    const loadSentRequests = async () => {
-      const q = query(
+    const loadConnectionStatuses = async () => {
+      const sentQ = query(
         collection(db, "connection_requests"),
         where("sender_id", "==", user.uid)
       );
-      const snapshot = await getDocs(q);
-      const receiverIds = new Set(
-        snapshot.docs.map((d) => d.data().receiver_id)
+      const rcvQ = query(
+        collection(db, "connection_requests"),
+        where("receiver_id", "==", user.uid)
       );
-      setSentRequests(receiverIds);
+      
+      const [sentSnap, rcvSnap] = await Promise.all([getDocs(sentQ), getDocs(rcvQ)]);
+      const statuses = new Map<string, string>();
+      
+      sentSnap.docs.forEach((d) => {
+        const data = d.data();
+        statuses.set(data.receiver_id, data.status);
+      });
+      
+      rcvSnap.docs.forEach((d) => {
+        const data = d.data();
+        statuses.set(data.sender_id, data.status);
+      });
+      
+      setConnectionStatuses(statuses);
     };
 
-    loadSentRequests();
+    loadConnectionStatuses();
   }, [user]);
 
   const handleConnect = async (receiverId: string) => {
@@ -118,7 +132,11 @@ export default function ExplorePage() {
         status: "pending",
         created_at: Timestamp.now(),
       });
-      setSentRequests((prev) => new Set(prev).add(receiverId));
+      setConnectionStatuses((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(receiverId, "pending");
+        return newMap;
+      });
     } catch (err) {
       console.error("Failed to send connection request:", err);
     }
@@ -231,15 +249,18 @@ export default function ExplorePage() {
                     onClick={() => handleConnect(person.uid)}
                     disabled={
                       connecting === person.uid ||
-                      sentRequests.has(person.uid)
+                      connectionStatuses.get(person.uid) === "pending" ||
+                      connectionStatuses.get(person.uid) === "approved"
                     }
                     className={`px-4 py-1.5 rounded text-xs font-medium transition-colors flex-shrink-0 ${
-                      sentRequests.has(person.uid)
+                      connectionStatuses.get(person.uid) === "pending" || connectionStatuses.get(person.uid) === "approved"
                         ? "bg-gray-700 text-gray-500 cursor-default"
                         : "bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
                     }`}
                   >
-                    {sentRequests.has(person.uid)
+                    {connectionStatuses.get(person.uid) === "approved"
+                      ? "Connected"
+                      : connectionStatuses.get(person.uid) === "pending"
                       ? "Requested"
                       : connecting === person.uid
                       ? "..."
