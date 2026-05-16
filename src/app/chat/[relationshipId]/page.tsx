@@ -17,7 +17,15 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Relationship, Milestone, Message, UserProfile } from "@/lib/types";
-import NavBar from "@/components/NavBar";
+import {
+  HealthBadge,
+  Icon,
+  NXAvatar,
+  NXBtn,
+  NXPill,
+  NXSidebar,
+  Sparkline,
+} from "@/components/nx";
 
 export default function ChatDetailPage() {
   const { user, profile, loading } = useAuth();
@@ -28,11 +36,11 @@ export default function ChatDetailPage() {
   const [relationship, setRelationship] = useState<Relationship | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [otherProfile, setOtherProfile] = useState<UserProfile | null>(null);
-  const [newMessage, setNewMessage] = useState("");
+  const [other, setOther] = useState<UserProfile | null>(null);
+  const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!loading && !user) router.push("/");
@@ -40,130 +48,112 @@ export default function ChatDetailPage() {
 
   useEffect(() => {
     if (!relationshipId) return;
-
-    const unsubscribe = onSnapshot(
+    const unsub = onSnapshot(
       doc(db, "relationships", relationshipId),
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setRelationship({
-            id: docSnap.id,
-            ...docSnap.data(),
-          } as Relationship);
-        }
+      (s) => {
+        if (s.exists())
+          setRelationship({ id: s.id, ...s.data() } as Relationship);
       }
     );
-
-    return () => unsubscribe();
+    return () => unsub();
   }, [relationshipId]);
 
   useEffect(() => {
     if (!relationship || !profile) return;
-
     const otherId =
       profile.role === "startup"
         ? relationship.mentor_id
         : relationship.startup_id;
-    getDoc(doc(db, "users", otherId)).then((docSnap) => {
-      if (docSnap.exists()) {
-        setOtherProfile({ uid: otherId, ...docSnap.data() } as UserProfile);
-      }
+    getDoc(doc(db, "users", otherId)).then((s) => {
+      if (s.exists()) setOther({ uid: otherId, ...s.data() } as UserProfile);
     });
-
-    const milestonesQuery = query(
-      collection(db, "milestones"),
-      where("relationship_id", "==", relationshipId)
+    const unsub = onSnapshot(
+      query(
+        collection(db, "milestones"),
+        where("relationship_id", "==", relationshipId)
+      ),
+      (snap) =>
+        setMilestones(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() } as Milestone))
+        )
     );
-    const unsubMilestones = onSnapshot(milestonesQuery, (snapshot) => {
-      const m = snapshot.docs.map(
-        (d) => ({ id: d.id, ...d.data() } as Milestone)
-      );
-      setMilestones(m);
-    });
-
-    return () => unsubMilestones();
+    return () => unsub();
   }, [relationship, profile, relationshipId]);
 
   useEffect(() => {
-    if (!relationshipId) return;
-
-    const messagesQuery = query(
-      collection(db, "messages"),
-      where("relationship_id", "==", relationshipId),
-      orderBy("timestamp", "asc")
-    );
-
-    const unsubscribe = onSnapshot(messagesQuery, async (snapshot) => {
-      const msgs = snapshot.docs.map(
-        (d) => ({ id: d.id, ...d.data() } as Message)
-      );
-      setMessages(msgs);
-
-      const unreadBatch = snapshot.docs.filter(
-        (d) => !d.data().read && d.data().sender_id !== user?.uid
-      );
-      for (const d of unreadBatch) {
-        await updateDoc(doc(db, "messages", d.id), { read: true });
+    if (!relationshipId || !user) return;
+    const unsub = onSnapshot(
+      query(
+        collection(db, "messages"),
+        where("relationship_id", "==", relationshipId),
+        orderBy("timestamp", "asc")
+      ),
+      async (snap) => {
+        const list = snap.docs.map(
+          (d) => ({ id: d.id, ...d.data() } as Message)
+        );
+        setMessages(list);
+        // mark unread as read
+        const unread = snap.docs.filter(
+          (d) => !d.data().read && d.data().sender_id !== user.uid
+        );
+        for (const d of unread) {
+          await updateDoc(doc(db, "messages", d.id), { read: true });
+        }
       }
-    });
-
-    return () => unsubscribe();
+    );
+    return () => unsub();
   }, [relationshipId, user]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    scrollEnd.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSend = async () => {
-    if (!newMessage.trim() || !user || !relationshipId) return;
+    if (!text.trim() || !user || !relationshipId) return;
     setSending(true);
-
     try {
       await addDoc(collection(db, "messages"), {
         relationship_id: relationshipId,
         sender_id: user.uid,
-        text: newMessage.trim(),
+        text: text.trim(),
         timestamp: Timestamp.now(),
         read: false,
       });
-      setNewMessage("");
+      setText("");
     } catch (err) {
-      console.error("Failed to send message:", err);
+      console.error(err);
     }
-
     setSending(false);
   };
 
-  const handleToggleMilestone = async (milestone: Milestone) => {
+  const completedCount = milestones.filter((m) => m.status === "completed").length;
+  const totalCount = milestones.length;
+
+  const handleToggle = async (m: Milestone) => {
     if (!user || !relationship || !relationshipId) return;
-    setToggling(milestone.id);
-
-    const isCompleting = milestone.status === "pending";
-
+    setToggling(m.id);
+    const isCompleting = m.status === "pending";
     try {
-      await updateDoc(doc(db, "milestones", milestone.id), {
+      await updateDoc(doc(db, "milestones", m.id), {
         status: isCompleting ? "completed" : "pending",
         completed_at: isCompleting ? Timestamp.now() : null,
       });
-
       await addDoc(collection(db, "signals"), {
         relationship_id: relationshipId,
         signal_type: "milestone_complete",
         actor_id: user.uid,
         timestamp: Timestamp.now(),
         metadata: {
-          milestone_id: milestone.id,
+          milestone_id: m.id,
           action: isCompleting ? "complete" : "revert",
         },
       });
-
-      const newCompleted = isCompleting
-        ? completedCount + 1
-        : completedCount - 1;
+      const newCompleted = isCompleting ? completedCount + 1 : completedCount - 1;
       await updateDoc(doc(db, "relationships", relationshipId), {
         milestones_completed: newCompleted,
         last_active_at: Timestamp.now(),
       });
-
       if (isCompleting) {
         fetch("/api/health-narration", {
           method: "POST",
@@ -172,254 +162,451 @@ export default function ChatDetailPage() {
         });
       }
     } catch (err) {
-      console.error("Failed to toggle milestone:", err);
+      console.error(err);
     }
-
     setToggling(null);
-  };
-
-  const formatMessageTime = (timestamp: Message["timestamp"]) => {
-    if (!timestamp?.toDate) return "";
-    return timestamp.toDate().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const formatDateSeparator = (timestamp: Message["timestamp"]) => {
-    if (!timestamp?.toDate) return "";
-    const date = timestamp.toDate();
-    const now = new Date();
-    const diffDays = Math.floor(
-      (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
-    );
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Yesterday";
-    return date.toLocaleDateString([], {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  const shouldShowDateSeparator = (
-    current: Message,
-    previous: Message | undefined
-  ) => {
-    if (!previous) return true;
-    const currentDate = current.timestamp?.toDate?.()?.toDateString();
-    const previousDate = previous.timestamp?.toDate?.()?.toDateString();
-    return currentDate !== previousDate;
   };
 
   if (loading || !relationship || !profile) return null;
 
-  const completedCount = milestones.filter((m) => m.status === "completed").length;
-  const totalCount = milestones.length;
-
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <NavBar />
-      <div className="flex h-[calc(100vh-56px)]">
-        {/* Left Panel - Chat */}
-        <div className="flex-1 flex flex-col border-r border-gray-800">
-          {/* Chat Header */}
-          <div className="h-16 border-b border-gray-800 flex items-center px-4 gap-4 flex-shrink-0">
+    <div className="nx-shell">
+      <NXSidebar current="chat" />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 340px",
+          minHeight: "100vh",
+          minWidth: 0,
+        }}
+      >
+        {/* Conversation */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            minHeight: "100vh",
+            minWidth: 0,
+          }}
+        >
+          <div
+            style={{
+              padding: "14px 24px",
+              borderBottom: "1px solid var(--rule)",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              background: "var(--paper)",
+            }}
+          >
             <button
               onClick={() => router.push("/chat")}
-              className="text-gray-400 hover:text-white transition-colors"
+              style={{
+                all: "unset",
+                cursor: "pointer",
+                color: "var(--ink-2)",
+              }}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-                className="w-6 h-6"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15.75 19.5L8.25 12l7.5-7.5"
-                />
-              </svg>
+              {Icon.arrowLeft}
             </button>
-            <div>
-              <h1 className="font-bold text-lg">
-                {otherProfile?.name || "Loading..."}
-              </h1>
-              <p className="text-xs text-gray-400">
-                {otherProfile?.role === "mentor" ? "Mentor" : "Startup"}
-                {otherProfile?.industry && ` · ${otherProfile.industry}`}
-              </p>
+            <NXAvatar size="md" id={other?.uid} name={other?.name ?? ""} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 500 }}>{other?.name ?? "—"}</div>
+              <span className="t-meta">
+                {other?.role === "mentor" ? "Mentor" : "Startup"} ·{" "}
+                {other?.industry ?? "—"}
+              </span>
             </div>
+            <HealthBadge
+              score={relationship.health_score}
+              trend={relationship.health_trend}
+            />
+            {other && (
+              <NXBtn
+                kind="ghost"
+                size="sm"
+                onClick={() => router.push(`/view/${other.uid}`)}
+              >
+                {Icon.user} Profile
+              </NXBtn>
+            )}
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-1">
+          <div
+            className="nx-scroll"
+            style={{
+              flex: 1,
+              padding: 24,
+              overflow: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              background: "var(--paper)",
+            }}
+          >
             {messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                <p>No messages yet. Start the conversation!</p>
+              <div
+                style={{
+                  margin: "auto",
+                  textAlign: "center",
+                  color: "var(--ink-3)",
+                }}
+              >
+                <p
+                  className="t-serif"
+                  style={{
+                    fontSize: 22,
+                    fontStyle: "italic",
+                    margin: 0,
+                  }}
+                >
+                  Start the conversation.
+                </p>
+                <p className="t-meta" style={{ marginTop: 6 }}>
+                  Even a short reply is a strong signal.
+                </p>
               </div>
             ) : (
-              messages.map((msg, index) => {
-                const isSent = msg.sender_id === user?.uid;
-                const showDate = shouldShowDateSeparator(
-                  msg,
-                  messages[index - 1]
-                );
-
+              messages.map((m, i) => {
+                const own = m.sender_id === user?.uid;
+                const showDate = shouldShowDate(m, messages[i - 1]);
                 return (
-                  <div key={msg.id}>
+                  <div key={m.id}>
                     {showDate && (
-                      <div className="flex justify-center my-4">
-                        <span className="text-xs text-gray-500 bg-gray-900 px-3 py-1 rounded-full">
-                          {formatDateSeparator(msg.timestamp)}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "center",
+                          margin: "8px 0",
+                        }}
+                      >
+                        <span
+                          className="nx-pill"
+                          style={{ background: "var(--paper-2)" }}
+                        >
+                          {formatDateHeader(m.timestamp.toDate())}
                         </span>
                       </div>
                     )}
                     <div
-                      className={`flex ${
-                        isSent ? "justify-end" : "justify-start"
-                      } mb-1`}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: own ? "flex-end" : "flex-start",
+                        gap: 4,
+                      }}
                     >
+                      <span className="t-meta">
+                        {!own && (other?.name ? `${other.name} · ` : "")}
+                        {m.timestamp?.toDate?.().toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }) ?? ""}
+                      </span>
                       <div
-                        className={`max-w-[70%] rounded-2xl px-4 py-2 ${
-                          isSent
-                            ? "bg-blue-600 text-white rounded-br-md"
-                            : "bg-gray-800 text-gray-100 rounded-bl-md"
-                        }`}
+                        style={{
+                          maxWidth: "70%",
+                          padding: "11px 14px",
+                          borderRadius: 14,
+                          fontSize: 13.5,
+                          lineHeight: 1.45,
+                          background: own ? "var(--ink)" : "var(--paper-2)",
+                          color: own ? "var(--paper)" : "var(--ink)",
+                          borderTopRightRadius: own ? 4 : 14,
+                          borderTopLeftRadius: own ? 14 : 4,
+                        }}
                       >
-                        <p className="text-sm">{msg.text}</p>
-                        <p
-                          className={`text-xs mt-1 ${
-                            isSent ? "text-blue-200" : "text-gray-500"
-                          }`}
-                        >
-                          {formatMessageTime(msg.timestamp)}
-                        </p>
+                        {m.text}
                       </div>
                     </div>
                   </div>
                 );
               })
             )}
-            <div ref={messagesEndRef} />
+            <div ref={scrollEnd} />
           </div>
 
-          {/* Message Input */}
-          <div className="h-20 border-t border-gray-800 flex items-center px-4 gap-3 flex-shrink-0">
+          <div
+            style={{
+              padding: "14px 20px",
+              borderTop: "1px solid var(--rule)",
+              display: "flex",
+              gap: 10,
+              alignItems: "center",
+              background: "var(--paper)",
+            }}
+          >
             <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   handleSend();
                 }
               }}
-              placeholder="Type a message..."
-              className="flex-1 bg-gray-800 border border-gray-700 rounded-full px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              placeholder={`Write to ${other?.name ?? "…"}`}
+              style={{
+                flex: 1,
+                background: "var(--paper-2)",
+                border: "1px solid var(--rule)",
+                borderRadius: 999,
+                padding: "10px 16px",
+                fontFamily: "inherit",
+                fontSize: 13.5,
+                outline: "none",
+                color: "var(--ink)",
+              }}
             />
-            <button
+            <NXBtn
+              kind="primary"
+              size="sm"
               onClick={handleSend}
-              disabled={sending || !newMessage.trim()}
-              className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center transition-colors"
+              disabled={sending || !text.trim()}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-                className="w-5 h-5"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
-                />
-              </svg>
-            </button>
+              Send {Icon.arrow}
+            </NXBtn>
           </div>
         </div>
 
-        {/* Right Panel - Milestones */}
-        <div className="w-2/5 flex flex-col bg-gray-900/50">
-          {/* Milestones Header */}
-          <div className="h-16 border-b border-gray-800 flex items-center justify-between px-6 flex-shrink-0">
-            <h2 className="font-bold">Milestones</h2>
-            <span className="text-sm font-medium text-gray-400">
-              {completedCount}/{totalCount} completed
-            </span>
-          </div>
-
-          {/* Milestones List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {milestones.length === 0 ? (
-              <p className="text-gray-500 text-sm text-center py-8">
-                No milestones set yet.
-              </p>
-            ) : (
-              milestones.map((milestone) => (
+        {/* Workspace */}
+        <aside
+          style={{
+            borderLeft: "1px solid var(--rule)",
+            overflow: "auto",
+            background: "var(--paper)",
+            padding: 20,
+            display: "flex",
+            flexDirection: "column",
+            gap: 18,
+          }}
+        >
+          <div>
+            <div className="t-eyebrow" style={{ marginBottom: 8 }}>
+              Relationship health
+            </div>
+            <div
+              style={{ display: "flex", alignItems: "baseline", gap: 10 }}
+            >
+              <span
+                className="t-serif"
+                style={{
+                  fontSize: 56,
+                  lineHeight: 1,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                {relationship.health_score}
+              </span>
+              <NXPill
+                kind={
+                  relationship.health_trend === "improving"
+                    ? "signal"
+                    : relationship.health_trend === "decaying"
+                    ? "crimson"
+                    : "amber"
+                }
+              >
+                {relationship.health_trend === "improving"
+                  ? "↑"
+                  : relationship.health_trend === "decaying"
+                  ? "↓"
+                  : "·"}{" "}
+                {relationship.health_trend}
+              </NXPill>
+            </div>
+            <Sparkline
+              width={280}
+              height={48}
+              points={[
+                Math.max(20, relationship.health_score - 25),
+                Math.max(20, relationship.health_score - 18),
+                Math.max(20, relationship.health_score - 12),
+                Math.max(20, relationship.health_score - 6),
+                relationship.health_score,
+              ]}
+            />
+            {relationship.health_narration && (
+              <>
                 <div
-                  key={milestone.id}
-                  className={`p-4 rounded-lg border ${
-                    milestone.status === "completed"
-                      ? "border-green-800/30 bg-green-900/10"
-                      : "border-gray-700 bg-gray-800/30"
-                  }`}
+                  className="t-mono"
+                  style={{
+                    fontSize: 9,
+                    letterSpacing: "0.14em",
+                    textTransform: "uppercase",
+                    color: "var(--ai)",
+                    marginTop: 14,
+                    marginBottom: 4,
+                  }}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span
-                          className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
-                            milestone.status === "completed"
-                              ? "bg-green-600 text-white"
-                              : "bg-gray-700 text-gray-400"
-                          }`}
-                        >
-                          {milestone.status === "completed" ? "✓" : "○"}
-                        </span>
-                        <span className="text-xs text-gray-500 uppercase tracking-wide">
-                          {milestone.blueprint_type}
-                        </span>
-                      </div>
-                      <p className="text-sm font-medium">{milestone.title}</p>
-                      {milestone.due_at && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Due:{" "}
-                          {milestone.due_at.toDate?.()?.toLocaleDateString() ||
-                            ""}
-                        </p>
-                      )}
-                    </div>
-                    {profile?.role === "startup" && (
-                      <button
-                        onClick={() => handleToggleMilestone(milestone)}
-                        disabled={toggling === milestone.id}
-                        className={`px-3 py-1.5 rounded text-xs font-medium transition-colors flex-shrink-0 ${
-                          milestone.status === "completed"
-                            ? "bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30"
-                            : "bg-green-600 hover:bg-green-700 text-white"
-                        } disabled:opacity-50`}
-                      >
-                        {toggling === milestone.id
-                          ? "..."
-                          : milestone.status === "completed"
-                          ? "Revert"
-                          : "Complete"}
-                      </button>
-                    )}
-                  </div>
+                  {Icon.spark} Health narration
                 </div>
-              ))
+                <p
+                  className="t-serif"
+                  style={{
+                    fontSize: 14,
+                    fontStyle: "italic",
+                    margin: 0,
+                    color: "var(--ink-2)",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {relationship.health_narration}
+                </p>
+              </>
             )}
           </div>
-        </div>
+
+          <hr className="nx-rule" />
+
+          <div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "baseline",
+                marginBottom: 8,
+              }}
+            >
+              <div className="t-eyebrow">
+                Milestones · {completedCount} of {totalCount}
+              </div>
+            </div>
+            {milestones.length === 0 ? (
+              <p className="t-meta">No milestones yet.</p>
+            ) : (
+              <ul
+                style={{
+                  margin: 0,
+                  padding: 0,
+                  listStyle: "none",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {milestones.map((m, i) => (
+                  <li
+                    key={m.id}
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      padding: "8px 0",
+                      borderTop: i ? "1px solid var(--rule)" : 0,
+                    }}
+                  >
+                    <button
+                      onClick={() => handleToggle(m)}
+                      disabled={
+                        toggling === m.id || profile?.role !== "startup"
+                      }
+                      style={{
+                        all: "unset",
+                        cursor:
+                          profile?.role === "startup"
+                            ? "pointer"
+                            : "default",
+                        width: 16,
+                        height: 16,
+                        borderRadius: 4,
+                        border: "1.5px solid var(--ink)",
+                        flex: "0 0 16px",
+                        background:
+                          m.status === "completed"
+                            ? "var(--ink)"
+                            : "transparent",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--paper)",
+                      }}
+                    >
+                      {m.status === "completed" && Icon.check}
+                    </button>
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: 12.5,
+                          lineHeight: 1.3,
+                          textDecoration:
+                            m.status === "completed"
+                              ? "line-through"
+                              : "none",
+                          color:
+                            m.status === "completed"
+                              ? "var(--ink-3)"
+                              : "var(--ink)",
+                        }}
+                      >
+                        {m.title}
+                      </div>
+                      <span
+                        className="t-meta"
+                        style={{ fontSize: 10 }}
+                      >
+                        {m.blueprint_type}
+                        {m.due_at?.toDate?.()
+                          ? ` · due ${m.due_at.toDate().toLocaleDateString()}`
+                          : ""}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {relationship.match_narrative && (
+            <>
+              <hr className="nx-rule" />
+              <div>
+                <div className="t-eyebrow" style={{ marginBottom: 6 }}>
+                  Why this match
+                </div>
+                <p
+                  className="t-serif"
+                  style={{
+                    fontSize: 14,
+                    fontStyle: "italic",
+                    margin: 0,
+                    color: "var(--ink-2)",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  &ldquo;{relationship.match_narrative}&rdquo;
+                </p>
+                <span
+                  className="t-meta"
+                  style={{ display: "block", marginTop: 6 }}
+                >
+                  edge {relationship.edge_weight}
+                </span>
+              </div>
+            </>
+          )}
+        </aside>
       </div>
     </div>
   );
+}
+
+function shouldShowDate(curr: Message, prev?: Message) {
+  if (!prev) return true;
+  const a = curr.timestamp?.toDate?.().toDateString();
+  const b = prev.timestamp?.toDate?.().toDateString();
+  return a !== b;
+}
+
+function formatDateHeader(d: Date) {
+  const today = new Date();
+  const diff = Math.floor(
+    (today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
+  );
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return d.toLocaleDateString([], {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 }

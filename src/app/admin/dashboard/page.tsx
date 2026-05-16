@@ -3,13 +3,29 @@
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { collection, query, where, onSnapshot, getDocs, doc, getDoc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Relationship, UserProfile, Programme } from "@/lib/types";
-import NavBar from "@/components/NavBar";
 import cytoscape from "cytoscape";
+import {
+  AICallout,
+  HealthBadge,
+  Icon,
+  NXBtn,
+  NXPill,
+  NXSidebar,
+  NXTopbar,
+  Sparkline,
+} from "@/components/nx";
 
-interface RelationshipWithProfiles extends Relationship {
+interface RelWithProfiles extends Relationship {
   mentorProfile?: UserProfile;
   startupProfile?: UserProfile;
 }
@@ -22,10 +38,8 @@ export default function AdminDashboardPage() {
 
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [selectedProgramme, setSelectedProgramme] = useState<string>("");
-  const [relationships, setRelationships] = useState<RelationshipWithProfiles[]>([]);
-  const [selectedRelationship, setSelectedRelationship] = useState<RelationshipWithProfiles | null>(null);
-  const [selectedNodeProfile, setSelectedNodeProfile] = useState<UserProfile | null>(null);
-  const [atRisk, setAtRisk] = useState<RelationshipWithProfiles[]>([]);
+  const [rels, setRels] = useState<RelWithProfiles[]>([]);
+  const [selectedRel, setSelectedRel] = useState<RelWithProfiles | null>(null);
 
   useEffect(() => {
     if (!loading && !user) router.push("/");
@@ -34,91 +48,86 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (!user) return;
-    // Show all programmes for demo — seeded data uses hardcoded created_by IDs
-    const q = query(collection(db, "programmes"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const progs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Programme));
-      setProgrammes(progs);
-      if (progs.length > 0 && !selectedProgramme) {
-        setSelectedProgramme(progs[0].id);
-      }
+    const unsub = onSnapshot(query(collection(db, "programmes")), (snap) => {
+      const list = snap.docs.map(
+        (d) => ({ id: d.id, ...d.data() } as Programme)
+      );
+      setProgrammes(list);
+      if (list.length && !selectedProgramme) setSelectedProgramme(list[0].id);
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, [user, selectedProgramme]);
 
   useEffect(() => {
     if (!selectedProgramme) return;
-
-    // Clear previous data
-    setRelationships([]);
-    setAtRisk([]);
-    setSelectedRelationship(null);
-    setSelectedNodeProfile(null);
+    setRels([]);
+    setSelectedRel(null);
     if (cyRef.current) {
       cyRef.current.destroy();
       cyRef.current = null;
     }
-
-    const q = query(collection(db, "relationships"), where("programme_id", "==", selectedProgramme));
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const rels = await Promise.all(
-        snapshot.docs.map(async (relDoc) => {
-          const rel = { id: relDoc.id, ...relDoc.data() } as Relationship;
-          const [mentorDoc, startupDoc] = await Promise.all([
+    const q = query(
+      collection(db, "relationships"),
+      where("programme_id", "==", selectedProgramme)
+    );
+    const unsub = onSnapshot(q, async (snap) => {
+      const list = await Promise.all(
+        snap.docs.map(async (d) => {
+          const rel = { id: d.id, ...d.data() } as Relationship;
+          const [mDoc, sDoc] = await Promise.all([
             getDoc(doc(db, "users", rel.mentor_id)),
             getDoc(doc(db, "users", rel.startup_id)),
           ]);
           return {
             ...rel,
-            mentorProfile: mentorDoc.exists() ? { uid: rel.mentor_id, ...mentorDoc.data() } as UserProfile : undefined,
-            startupProfile: startupDoc.exists() ? { uid: rel.startup_id, ...startupDoc.data() } as UserProfile : undefined,
+            mentorProfile: mDoc.exists()
+              ? ({ uid: rel.mentor_id, ...mDoc.data() } as UserProfile)
+              : undefined,
+            startupProfile: sDoc.exists()
+              ? ({ uid: rel.startup_id, ...sDoc.data() } as UserProfile)
+              : undefined,
           };
         })
       );
-      setRelationships(rels);
-      setAtRisk(rels.filter((r) => r.health_trend === "decaying"));
+      setRels(list);
     });
-
-    return () => unsubscribe();
+    return () => unsub();
   }, [selectedProgramme]);
 
   const initGraph = useCallback(() => {
-    if (!graphRef.current || relationships.length === 0) return;
-
+    if (!graphRef.current || rels.length === 0) return;
     if (cyRef.current) cyRef.current.destroy();
-
     const nodes: cytoscape.ElementDefinition[] = [];
     const edges: cytoscape.ElementDefinition[] = [];
-    const addedNodes = new Set<string>();
-
-    relationships.forEach((rel) => {
-      if (!addedNodes.has(rel.mentor_id)) {
+    const added = new Set<string>();
+    rels.forEach((r) => {
+      if (!added.has(r.mentor_id)) {
         nodes.push({
           data: {
-            id: rel.mentor_id,
-            label: rel.mentorProfile?.name || "Mentor",
+            id: r.mentor_id,
+            label: r.mentorProfile?.name ?? "Mentor",
             type: "mentor",
           },
         });
-        addedNodes.add(rel.mentor_id);
+        added.add(r.mentor_id);
       }
-      if (!addedNodes.has(rel.startup_id)) {
+      if (!added.has(r.startup_id)) {
         nodes.push({
           data: {
-            id: rel.startup_id,
-            label: rel.startupProfile?.name || "Startup",
+            id: r.startup_id,
+            label: r.startupProfile?.name ?? "Startup",
             type: "startup",
           },
         });
-        addedNodes.add(rel.startup_id);
+        added.add(r.startup_id);
       }
       edges.push({
         data: {
-          id: rel.id,
-          source: rel.mentor_id,
-          target: rel.startup_id,
-          health: rel.health_score,
-          weight: rel.edge_weight,
+          id: r.id,
+          source: r.mentor_id,
+          target: r.startup_id,
+          health: r.health_score,
+          trend: r.health_trend,
         },
       });
     });
@@ -130,47 +139,56 @@ export default function AdminDashboardPage() {
         {
           selector: "node[type='mentor']",
           style: {
-            "background-color": "#3B82F6",
+            "background-color": "#1c1b18",
             label: "data(label)",
-            color: "#fff",
+            color: "#3b342a",
             "font-size": "10px",
+            "font-family": "Geist, system-ui, sans-serif",
             "text-valign": "bottom",
-            "text-margin-y": 8,
-            width: 40,
-            height: 40,
+            "text-margin-y": 10,
+            width: 44,
+            height: 44,
+            "border-width": 0,
           },
         },
         {
           selector: "node[type='startup']",
           style: {
-            "background-color": "#10B981",
+            "background-color": "#FAFAF7",
             label: "data(label)",
-            color: "#fff",
+            color: "#3b342a",
             "font-size": "10px",
+            "font-family": "Geist, system-ui, sans-serif",
             "text-valign": "bottom",
-            "text-margin-y": 8,
-            width: 35,
-            height: 35,
+            "text-margin-y": 10,
+            width: 40,
+            height: 40,
+            "border-color": "#1c1b18",
+            "border-width": 1.8,
           },
         },
         {
           selector: "edge",
           style: {
-            width: 3,
+            width: 2.5,
             "line-color": (ele: cytoscape.EdgeSingular) => {
-              const health = ele.data("health") as number;
-              if (health >= 70) return "#10B981";
-              if (health >= 40) return "#F59E0B";
-              return "#EF4444";
+              const h = ele.data("health") as number;
+              if (h >= 70) return "#2A8E5C";
+              if (h >= 40) return "#B68720";
+              return "#B23A2A";
+            },
+            "line-style": (ele: cytoscape.EdgeSingular) => {
+              return ele.data("trend") === "decaying" ? "dashed" : "solid";
             },
             "curve-style": "bezier",
+            opacity: 0.85,
           },
         },
         {
           selector: "edge:selected",
           style: {
-            width: 5,
-            "line-color": "#60A5FA",
+            width: 4,
+            opacity: 1,
           },
         },
       ],
@@ -178,47 +196,22 @@ export default function AdminDashboardPage() {
         name: "cose",
         animate: true,
         animationDuration: 500,
-        nodeRepulsion: () => 8000,
-        idealEdgeLength: () => 150,
+        nodeRepulsion: () => 10000,
+        idealEdgeLength: () => 160,
       },
     });
 
-    cy.on("tap", "node", (evt) => {
-      const nodeId = evt.target.data("id");
-      let profile: UserProfile | undefined;
-      for (const rel of relationships) {
-        if (rel.mentor_id === nodeId) {
-          profile = rel.mentorProfile;
-          break;
-        } else if (rel.startup_id === nodeId) {
-          profile = rel.startupProfile;
-          break;
-        }
-      }
-      if (profile) {
-        setSelectedNodeProfile(profile);
-        setSelectedRelationship(null);
-      }
-    });
-
     cy.on("tap", "edge", (evt) => {
-      const edgeId = evt.target.data("id");
-      const rel = relationships.find((r) => r.id === edgeId);
-      if (rel) {
-        setSelectedRelationship(rel);
-        setSelectedNodeProfile(null);
-      }
+      const id = evt.target.data("id");
+      const rel = rels.find((r) => r.id === id);
+      if (rel) setSelectedRel(rel);
     });
-
     cy.on("tap", (evt) => {
-      if (evt.target === cy) {
-        setSelectedRelationship(null);
-        setSelectedNodeProfile(null);
-      }
+      if (evt.target === cy) setSelectedRel(null);
     });
 
     cyRef.current = cy;
-  }, [relationships]);
+  }, [rels]);
 
   useEffect(() => {
     initGraph();
@@ -226,178 +219,552 @@ export default function AdminDashboardPage() {
 
   if (loading || !profile) return null;
 
+  const atRisk = rels.filter((r) => r.health_trend === "decaying");
+  const healthy = rels.filter((r) => r.health_score >= 70).length;
+  const stable = rels.filter((r) => r.health_score >= 40 && r.health_score < 70).length;
+  const decayingCount = rels.filter((r) => r.health_score < 40).length;
+  const medianHealth = rels.length
+    ? Math.round(
+        [...rels].sort((a, b) => a.health_score - b.health_score)[
+          Math.floor(rels.length / 2)
+        ].health_score
+      )
+    : 0;
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <NavBar />
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">Ecosystem Dashboard</h1>
-          <select
-            value={selectedProgramme}
-            onChange={(e) => setSelectedProgramme(e.target.value)}
-            className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm"
+    <div className="nx-shell">
+      <NXSidebar current="admin" />
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <NXTopbar
+          eyebrow={
+            programmes.find((p) => p.id === selectedProgramme)?.name
+              ? `Programme · ${
+                  programmes.find((p) => p.id === selectedProgramme)?.name
+                }`
+              : "All programmes"
+          }
+          title="Ecosystem."
+        >
+          <div
+            style={{ display: "flex", alignItems: "center", gap: 10 }}
           >
-            {programmes.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-          {/* Graph */}
-          <div className="lg:col-span-3 bg-gray-900 border border-gray-800 rounded-lg overflow-hidden relative">
-            <div ref={graphRef} className="w-full h-[500px]" />
-            {relationships.length === 0 && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-sm">
-                <div className="text-center space-y-3">
-                  <div className="text-4xl">📊</div>
-                  <p className="text-gray-400 font-medium">
-                    No relationships in this programme yet
-                  </p>
-                  <p className="text-xs text-gray-500 max-w-xs">
-                    Run &ldquo;Generate Matches&rdquo; in the Programmes page to create mentor-startup relationships.
-                  </p>
-                </div>
-              </div>
-            )}
+            <NXPill>
+              <span className="nx-dot nx-dot--signal" />
+              {healthy} healthy
+            </NXPill>
+            <NXPill kind="amber">
+              <span className="nx-dot nx-dot--amber" />
+              {stable} stable
+            </NXPill>
+            <NXPill kind="crimson">
+              <span className="nx-dot nx-dot--crimson" />
+              {decayingCount} at-risk
+            </NXPill>
           </div>
+          {programmes.length > 1 && (
+            <select
+              value={selectedProgramme}
+              onChange={(e) => setSelectedProgramme(e.target.value)}
+              style={{
+                padding: "7px 12px",
+                background: "var(--paper-2)",
+                border: "1px solid var(--rule)",
+                borderRadius: 999,
+                fontSize: 12,
+                color: "var(--ink)",
+              }}
+            >
+              {programmes.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </NXTopbar>
 
-          {/* Side Panel */}
-          <div className="space-y-4">
-            {/* Selected Detail */}
-            {selectedNodeProfile ? (
-              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xl">
-                    {selectedNodeProfile.role === "startup" ? "🚀" : "🎯"}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white">{selectedNodeProfile.name}</h3>
-                    <p className="text-xs text-gray-400 capitalize">{selectedNodeProfile.role} • {selectedNodeProfile.industry}</p>
-                  </div>
-                </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 360px",
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            {/* Stats */}
+            <div
+              style={{
+                padding: "16px 28px",
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 1fr)",
+                gap: 14,
+                borderBottom: "1px solid var(--rule)",
+              }}
+            >
+              <MiniStat
+                n={String(rels.length)}
+                l="Live relationships"
+                delta={
+                  rels.length
+                    ? `${atRisk.length} need triage`
+                    : "no matches yet"
+                }
+                tone="ink"
+              />
+              <MiniStat
+                n={String(medianHealth)}
+                l="Median health"
+                delta={
+                  rels.length
+                    ? `${healthy} healthy / ${decayingCount} decaying`
+                    : "—"
+                }
+                tone="signal"
+              />
+              <MiniStat
+                n={
+                  rels.length
+                    ? String(
+                        Math.round(
+                          rels.reduce(
+                            (a, r) => a + (r.edge_weight ?? 0),
+                            0
+                          ) / rels.length
+                        )
+                      )
+                    : "—"
+                }
+                l="Avg edge"
+                delta="Gemini-scored"
+                tone="ink"
+              />
+              <MiniStat
+                n={String(atRisk.length)}
+                l="Decaying"
+                delta={
+                  atRisk.length
+                    ? atRisk
+                        .slice(0, 2)
+                        .map((r) => r.id.slice(0, 4))
+                        .join(", ")
+                    : "—"
+                }
+                tone="crimson"
+              />
+            </div>
 
-                {selectedNodeProfile.description && (
-                  <div>
-                    <p className="text-xs text-gray-400 mb-1">Description</p>
-                    <p className="text-sm text-gray-300">{selectedNodeProfile.description}</p>
-                  </div>
-                )}
-
-                {selectedNodeProfile.role === "mentor" && selectedNodeProfile.expertise_areas && (
-                  <div>
-                    <p className="text-xs text-gray-400 mb-1">Expertise Areas</p>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedNodeProfile.expertise_areas.map((area) => (
-                        <span key={area} className="bg-blue-900/40 text-blue-300 text-[10px] px-2 py-0.5 rounded-full">
-                          {area}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {selectedNodeProfile.role === "startup" && selectedNodeProfile.quality_score !== undefined && (
-                  <div>
-                    <p className="text-xs text-gray-400 mb-1">Quality Score</p>
-                    <p className="text-lg font-bold text-blue-400">{selectedNodeProfile.quality_score} <span className="text-xs text-gray-500 font-normal">/ 100</span></p>
-                  </div>
-                )}
-
-                <div className="pt-2">
-                  <button
-                    onClick={() => router.push(`/view/${selectedNodeProfile.uid}`)}
-                    className="w-full bg-gray-800 hover:bg-gray-700 text-white rounded py-2 text-sm font-medium transition-colors"
+            <div
+              style={{
+                flex: 1,
+                position: "relative",
+                background: "var(--paper-2)",
+                minHeight: 480,
+              }}
+            >
+              {rels.length === 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexDirection: "column",
+                    gap: 10,
+                    color: "var(--ink-3)",
+                  }}
+                >
+                  <p
+                    className="t-serif"
+                    style={{ fontSize: 28, margin: 0 }}
                   >
-                    View Full Profile
-                  </button>
-                </div>
-              </div>
-            ) : selectedRelationship ? (
-              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
-                <h3 className="font-medium text-sm text-gray-400">Relationship Detail</h3>
-                <div className="space-y-2">
-                  <p className="text-sm">
-                    <span className="text-blue-400">{selectedRelationship.mentorProfile?.name}</span>
-                    {" → "}
-                    <span className="text-green-400">{selectedRelationship.startupProfile?.name}</span>
+                    Quiet ecosystem.
                   </p>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-2xl font-bold ${
-                      selectedRelationship.health_score >= 70 ? "text-green-400" :
-                      selectedRelationship.health_score >= 40 ? "text-yellow-400" : "text-red-400"
-                    }`}>
-                      {selectedRelationship.health_score}
-                    </span>
-                    <span className="text-xs text-gray-500">/ 100</span>
-                    <span className={`text-xs ${
-                      selectedRelationship.health_trend === "improving" ? "text-green-400" :
-                      selectedRelationship.health_trend === "decaying" ? "text-red-400" : "text-gray-400"
-                    }`}>
-                      {selectedRelationship.health_trend === "improving" ? "↑" :
-                       selectedRelationship.health_trend === "decaying" ? "↓" : "→"}
-                      {" "}{selectedRelationship.health_trend}
-                    </span>
-                  </div>
-                </div>
-
-                {selectedRelationship.health_narration && (
-                  <div className="bg-gray-800/50 rounded p-3">
-                    <p className="text-xs text-gray-300 italic">
-                      {selectedRelationship.health_narration}
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">— Gemini Health Analysis</p>
-                  </div>
-                )}
-
-                <div className="text-xs text-gray-500 space-y-1">
-                  <p>Match score: {selectedRelationship.edge_weight}%</p>
-                  <p>Milestones: {selectedRelationship.milestones_completed}/{selectedRelationship.milestones_total}</p>
-                  <p>Messages: {selectedRelationship.platform_messages_sent}</p>
-                </div>
-
-                {selectedRelationship.match_narrative && (
-                  <div className="border-t border-gray-800 pt-3">
-                    <p className="text-xs text-gray-400 mb-1">Match Reasoning:</p>
-                    <p className="text-xs text-gray-300">{selectedRelationship.match_narrative}</p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 text-center text-sm text-gray-500">
-                Click an edge to view relationship details
-              </div>
-            )}
-
-            {/* At-Risk Panel */}
-            <div className="bg-gray-900 border border-red-900/30 rounded-lg p-4 space-y-3">
-              <h3 className="font-medium text-sm text-red-400">
-                ⚠ At Risk ({atRisk.length})
-              </h3>
-              {atRisk.length === 0 ? (
-                <p className="text-xs text-gray-500">No decaying relationships.</p>
-              ) : (
-                <div className="space-y-2">
-                  {atRisk.map((rel) => (
-                    <button
-                      key={rel.id}
-                      onClick={() => setSelectedRelationship(rel)}
-                      className="w-full text-left bg-gray-800/50 rounded p-2 hover:bg-gray-800 transition-colors"
-                    >
-                      <p className="text-xs font-medium">
-                        {rel.mentorProfile?.name} → {rel.startupProfile?.name}
-                      </p>
-                      <p className="text-xs text-red-400">
-                        Health: {rel.health_score} ↓
-                      </p>
-                    </button>
-                  ))}
+                  <p className="t-meta">
+                    Run “Generate Matches” to populate this graph.
+                  </p>
+                  <NXBtn
+                    kind="primary"
+                    onClick={() => router.push("/admin/programme")}
+                  >
+                    {Icon.bolt} Generate
+                  </NXBtn>
                 </div>
               )}
+              <div ref={graphRef} style={{ width: "100%", height: "100%" }} />
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 18,
+                  left: 18,
+                  padding: "10px 14px",
+                  background: "var(--paper)",
+                  border: "1px solid var(--rule)",
+                  borderRadius: "var(--r-md)",
+                  display: "flex",
+                  gap: 14,
+                  fontSize: 11,
+                  alignItems: "center",
+                }}
+              >
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: 999,
+                      background: "var(--ink)",
+                    }}
+                  />{" "}
+                  Mentor
+                </span>
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: 999,
+                      background: "var(--paper)",
+                      border: "1.5px solid var(--ink)",
+                    }}
+                  />{" "}
+                  Startup
+                </span>
+                <span
+                  style={{
+                    width: 1,
+                    height: 14,
+                    background: "var(--rule)",
+                  }}
+                />
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 18,
+                      height: 2,
+                      background: "var(--signal)",
+                    }}
+                  />{" "}
+                  healthy
+                </span>
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 18,
+                      height: 2,
+                      background: "var(--amber)",
+                    }}
+                  />{" "}
+                  stable
+                </span>
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 18,
+                      height: 2,
+                      background: "var(--crimson)",
+                    }}
+                  />{" "}
+                  decaying
+                </span>
+              </div>
             </div>
           </div>
+
+          {/* Side panel */}
+          <aside
+            style={{
+              borderLeft: "1px solid var(--rule)",
+              overflow: "auto",
+              background: "var(--paper)",
+              padding: 22,
+              display: "flex",
+              flexDirection: "column",
+              gap: 18,
+            }}
+          >
+            {selectedRel ? (
+              <>
+                <div>
+                  <div className="t-eyebrow">
+                    Selected relationship · {selectedRel.id.slice(0, 6)}
+                  </div>
+                  <h3
+                    className="t-serif"
+                    style={{
+                      fontSize: 26,
+                      margin: "6px 0 0",
+                      lineHeight: 1.05,
+                    }}
+                  >
+                    {selectedRel.startupProfile?.name ?? "Startup"}{" "}
+                    <em style={{ color: "var(--ink-3)" }}>×</em>{" "}
+                    {selectedRel.mentorProfile?.name ?? "Mentor"}
+                  </h3>
+                  <div
+                    style={{ display: "flex", gap: 8, marginTop: 10 }}
+                  >
+                    <HealthBadge
+                      score={selectedRel.health_score}
+                      trend={selectedRel.health_trend}
+                    />
+                    <NXPill>edge {selectedRel.edge_weight ?? "—"}</NXPill>
+                  </div>
+                </div>
+                {selectedRel.health_narration && (
+                  <AICallout
+                    label="Why · Gemini health read"
+                    model="Gemini 2.0 Flash"
+                  >
+                    {selectedRel.health_narration}
+                  </AICallout>
+                )}
+                <div>
+                  <div className="t-eyebrow" style={{ marginBottom: 6 }}>
+                    Health · sparkline
+                  </div>
+                  <Sparkline
+                    width={290}
+                    height={56}
+                    color={
+                      selectedRel.health_trend === "decaying"
+                        ? "var(--crimson)"
+                        : "var(--ink)"
+                    }
+                    points={[
+                      Math.max(10, selectedRel.health_score - 30),
+                      Math.max(10, selectedRel.health_score - 20),
+                      Math.max(10, selectedRel.health_score - 10),
+                      selectedRel.health_score,
+                    ]}
+                  />
+                </div>
+                {selectedRel.match_narrative && (
+                  <div>
+                    <div
+                      className="t-eyebrow"
+                      style={{ marginBottom: 6 }}
+                    >
+                      Why this match
+                    </div>
+                    <p
+                      className="t-serif"
+                      style={{
+                        fontSize: 14,
+                        fontStyle: "italic",
+                        color: "var(--ink-2)",
+                        lineHeight: 1.4,
+                        margin: 0,
+                      }}
+                    >
+                      &ldquo;{selectedRel.match_narrative}&rdquo;
+                    </p>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <NXBtn
+                    kind="primary"
+                    size="sm"
+                    onClick={() =>
+                      router.push(`/chat/${selectedRel.id}`)
+                    }
+                  >
+                    Open chat {Icon.arrow}
+                  </NXBtn>
+                  <NXBtn
+                    kind="ghost"
+                    size="sm"
+                    onClick={() =>
+                      router.push(
+                        `/view/${selectedRel.startup_id}`
+                      )
+                    }
+                  >
+                    Startup profile
+                  </NXBtn>
+                </div>
+              </>
+            ) : (
+              <div>
+                <div className="t-eyebrow">Tip</div>
+                <p
+                  className="t-serif"
+                  style={{
+                    fontSize: 20,
+                    fontStyle: "italic",
+                    margin: "6px 0 0",
+                    lineHeight: 1.35,
+                  }}
+                >
+                  Click an edge to read its health narration.
+                </p>
+              </div>
+            )}
+
+            {atRisk.length > 0 && (
+              <>
+                <hr className="nx-rule" />
+                <div>
+                  <div
+                    className="t-eyebrow"
+                    style={{ marginBottom: 8 }}
+                  >
+                    At-risk relationships
+                  </div>
+                  <ul
+                    style={{
+                      margin: 0,
+                      padding: 0,
+                      listStyle: "none",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                    }}
+                  >
+                    {atRisk.map((r) => (
+                      <li
+                        key={r.id}
+                        onClick={() => setSelectedRel(r)}
+                        style={{
+                          padding: 12,
+                          background: "var(--crimson-soft)",
+                          borderRadius: "var(--r-md)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 500,
+                              color: "var(--crimson-ink)",
+                            }}
+                          >
+                            {r.startupProfile?.name ?? "—"} ×{" "}
+                            {r.mentorProfile?.name ?? "—"}
+                          </span>
+                          <HealthBadge
+                            score={r.health_score}
+                            trend={r.health_trend}
+                            compact
+                          />
+                        </div>
+                        <span
+                          className="t-meta"
+                          style={{
+                            color: "var(--crimson-ink)",
+                            opacity: 0.7,
+                          }}
+                        >
+                          {r.milestones_completed ?? 0}/
+                          {r.milestones_total ?? 0} milestones ·{" "}
+                          {r.platform_messages_sent ?? 0} msgs
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            )}
+          </aside>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MiniStat({
+  n,
+  l,
+  delta,
+  tone,
+}: {
+  n: string;
+  l: string;
+  delta: string;
+  tone: "ink" | "signal" | "crimson";
+}) {
+  const color =
+    tone === "signal"
+      ? "var(--signal-ink)"
+      : tone === "crimson"
+      ? "var(--crimson-ink)"
+      : "var(--ink-3)";
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 8,
+        }}
+      >
+        <span
+          className="t-serif"
+          style={{
+            fontSize: 38,
+            letterSpacing: "-0.02em",
+            lineHeight: 1,
+          }}
+        >
+          {n}
+        </span>
+        <span
+          className="t-mono"
+          style={{ fontSize: 10, color }}
+        >
+          {delta}
+        </span>
+      </div>
+      <span
+        className="t-label"
+        style={{ display: "block", marginTop: 4 }}
+      >
+        {l}
+      </span>
     </div>
   );
 }

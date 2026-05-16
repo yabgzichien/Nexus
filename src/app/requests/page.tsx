@@ -14,17 +14,32 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ConnectionRequest, UserProfile } from "@/lib/types";
-import NavBar from "@/components/NavBar";
+import {
+  AICallout,
+  Icon,
+  NXAvatar,
+  NXBtn,
+  NXPill,
+  NXSearch,
+  NXSidebar,
+  NXTopbar,
+} from "@/components/nx";
 
-interface RequestWithUser extends ConnectionRequest {
+interface ReqWithUser extends ConnectionRequest {
   sender: UserProfile;
 }
+
+type Tab = "incoming" | "sent" | "archived";
 
 export default function RequestsPage() {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
-  const [requests, setRequests] = useState<RequestWithUser[]>([]);
-  const [processing, setProcessing] = useState<string | null>(null);
+  const [incoming, setIncoming] = useState<ReqWithUser[]>([]);
+  const [sent, setSent] = useState<ReqWithUser[]>([]);
+  const [archived, setArchived] = useState<ReqWithUser[]>([]);
+  const [selected, setSelected] = useState<ReqWithUser | null>(null);
+  const [tab, setTab] = useState<Tab>("incoming");
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.push("/");
@@ -32,158 +47,507 @@ export default function RequestsPage() {
 
   useEffect(() => {
     if (!user) return;
-
-    const q = query(
-      collection(db, "connection_requests"),
-      where("receiver_id", "==", user.uid),
-      where("status", "==", "pending")
-    );
-
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const requestsWithUsers: RequestWithUser[] = [];
-
-      for (const d of snapshot.docs) {
-        const data = d.data() as ConnectionRequest;
-        const senderDoc = await getDoc(doc(db, "users", data.sender_id));
-        if (senderDoc.exists()) {
-          requestsWithUsers.push({
-            ...data,
-            id: d.id,
-            sender: {
-              uid: data.sender_id,
-              ...senderDoc.data(),
-            } as UserProfile,
-          });
+    const unsubIn = onSnapshot(
+      query(
+        collection(db, "connection_requests"),
+        where("receiver_id", "==", user.uid),
+        where("status", "==", "pending")
+      ),
+      async (snap) => {
+        const list: ReqWithUser[] = [];
+        for (const d of snap.docs) {
+          const data = d.data() as ConnectionRequest;
+          const senderDoc = await getDoc(doc(db, "users", data.sender_id));
+          if (senderDoc.exists()) {
+            list.push({
+              ...data,
+              id: d.id,
+              sender: {
+                uid: data.sender_id,
+                ...senderDoc.data(),
+              } as UserProfile,
+            });
+          }
         }
+        setIncoming(list);
+        setSelected((cur) => cur ?? list[0] ?? null);
       }
-
-      setRequests(requestsWithUsers);
-    });
-
-    return () => unsubscribe();
+    );
+    const unsubSent = onSnapshot(
+      query(
+        collection(db, "connection_requests"),
+        where("sender_id", "==", user.uid),
+        where("status", "==", "pending")
+      ),
+      async (snap) => {
+        const list: ReqWithUser[] = [];
+        for (const d of snap.docs) {
+          const data = d.data() as ConnectionRequest;
+          const otherDoc = await getDoc(doc(db, "users", data.receiver_id));
+          if (otherDoc.exists()) {
+            list.push({
+              ...data,
+              id: d.id,
+              sender: {
+                uid: data.receiver_id,
+                ...otherDoc.data(),
+              } as UserProfile,
+            });
+          }
+        }
+        setSent(list);
+      }
+    );
+    const unsubArch = onSnapshot(
+      query(
+        collection(db, "connection_requests"),
+        where("receiver_id", "==", user.uid),
+        where("status", "in", ["approved", "rejected"])
+      ),
+      async (snap) => {
+        const list: ReqWithUser[] = [];
+        for (const d of snap.docs) {
+          const data = d.data() as ConnectionRequest;
+          const senderDoc = await getDoc(doc(db, "users", data.sender_id));
+          if (senderDoc.exists()) {
+            list.push({
+              ...data,
+              id: d.id,
+              sender: {
+                uid: data.sender_id,
+                ...senderDoc.data(),
+              } as UserProfile,
+            });
+          }
+        }
+        setArchived(list);
+      }
+    );
+    return () => {
+      unsubIn();
+      unsubSent();
+      unsubArch();
+    };
   }, [user]);
 
-  const handleApprove = async (requestId: string) => {
-    setProcessing(requestId);
-    try {
-      await updateDoc(doc(db, "connection_requests", requestId), {
-        status: "approved",
-      });
-    } catch (err) {
-      console.error("Failed to approve request:", err);
-    }
-    setProcessing(null);
+  const handleApprove = async (r: ReqWithUser) => {
+    setProcessing(true);
+    await updateDoc(doc(db, "connection_requests", r.id), {
+      status: "approved",
+    });
+    setSelected(null);
+    setProcessing(false);
   };
 
-  const handleReject = async (requestId: string) => {
-    setProcessing(requestId);
-    try {
-      await updateDoc(doc(db, "connection_requests", requestId), {
-        status: "rejected",
-      });
-    } catch (err) {
-      console.error("Failed to reject request:", err);
-    }
-    setProcessing(null);
+  const handleReject = async (r: ReqWithUser) => {
+    setProcessing(true);
+    await updateDoc(doc(db, "connection_requests", r.id), {
+      status: "rejected",
+    });
+    setSelected(null);
+    setProcessing(false);
   };
+
+  const currentList =
+    tab === "incoming" ? incoming : tab === "sent" ? sent : archived;
 
   if (loading || !profile) return null;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <NavBar />
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="flex items-center gap-4 mb-6">
-          <button
-            onClick={() => router.push("/matches")}
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-              className="w-5 h-5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.75 19.5L8.25 12l7.5-7.5"
-              />
-            </svg>
-          </button>
-          <h1 className="text-2xl font-bold">Connection Requests</h1>
-        </div>
+    <div className="nx-shell">
+      <NXSidebar current="requests" />
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <NXTopbar
+          eyebrow={`Requests · ${incoming.length} awaiting · ${sent.length} sent`}
+          title="Inbox."
+        >
+          <NXSearch style={{ maxWidth: 280 }} />
+        </NXTopbar>
 
-        {requests.length === 0 ? (
-          <div className="text-center py-16 text-gray-500">
-            <p className="text-lg">No pending requests.</p>
-            <p className="text-sm mt-2">
-              When someone sends you a connection request, it will appear here.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {requests.map((request) => (
-              <div
-                key={request.id}
-                className="bg-gray-900 border border-gray-800 rounded-lg p-4"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <button
-                    onClick={() =>
-                      router.push(`/view/${request.sender_id}`)
-                    }
-                    className="flex items-center gap-3 text-left flex-1 hover:opacity-80 transition-opacity"
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1.1fr 1.4fr",
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          {/* List */}
+          <div
+            style={{
+              borderRight: "1px solid var(--rule)",
+              overflow: "auto",
+              minHeight: 0,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                padding: "14px 20px",
+                borderBottom: "1px solid var(--rule)",
+              }}
+            >
+              {(
+                [
+                  ["incoming", incoming.length],
+                  ["sent", sent.length],
+                  ["archived", archived.length],
+                ] as const
+              ).map(([key, count]) => (
+                <button
+                  key={key}
+                  onClick={() => setTab(key as Tab)}
+                  style={{ all: "unset", cursor: "pointer" }}
+                >
+                  <span
+                    className={`nx-pill ${tab === key ? "nx-pill--ink" : ""}`}
+                    style={{ textTransform: "capitalize" }}
                   >
-                    <div className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center text-lg font-bold flex-shrink-0">
-                      {request.sender.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-medium">{request.sender.name}</p>
-                      <p className="text-sm text-gray-400">
-                        {request.sender.role === "mentor"
-                          ? "Mentor"
-                          : "Startup"}{" "}
-                        · {request.sender.industry}
-                      </p>
-                      {request.sender.role === "startup" &&
-                        request.sender.quality_score !== undefined && (
-                          <p className="text-xs text-blue-400 mt-1">
-                            Quality Score: {request.sender.quality_score}/100
-                          </p>
-                        )}
-                      {request.sender.role === "mentor" &&
-                        request.sender.expertise_areas && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            {request.sender.expertise_areas.join(", ")}
-                          </p>
+                    {key}{" "}
+                    <span style={{ opacity: 0.6 }}>{count}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            {currentList.length === 0 ? (
+              <div
+                className="t-meta"
+                style={{ padding: 28, textAlign: "center" }}
+              >
+                Nothing in {tab}.
+              </div>
+            ) : (
+              currentList.map((q) => {
+                const isSel = selected?.id === q.id;
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => setSelected(q)}
+                    style={{
+                      all: "unset",
+                      display: "flex",
+                      gap: 12,
+                      width: "100%",
+                      padding: "16px 20px",
+                      borderBottom: "1px solid var(--rule)",
+                      background: isSel ? "var(--paper-2)" : "transparent",
+                      borderLeft: `3px solid ${
+                        isSel ? "var(--ink)" : "transparent"
+                      }`,
+                      cursor: "pointer",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <NXAvatar
+                      size="md"
+                      id={q.sender.uid}
+                      name={q.sender.name}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "baseline",
+                          gap: 6,
+                        }}
+                      >
+                        <span style={{ fontWeight: 500, fontSize: 14 }}>
+                          {q.sender.name}
+                        </span>
+                        <span className="t-meta">
+                          {q.created_at?.toDate?.()
+                            ? relTime(q.created_at.toDate())
+                            : ""}
+                        </span>
+                      </div>
+                      <span
+                        className="t-meta"
+                        style={{
+                          fontStyle: "italic",
+                          fontFamily: "var(--font-serif)",
+                          fontSize: 13,
+                        }}
+                      >
+                        {q.sender.role === "mentor" ? "Mentor" : "Startup"} ·{" "}
+                        {q.sender.industry}
+                      </span>
+                      {q.sender.role === "startup" &&
+                        q.sender.quality_score !== undefined && (
+                          <div style={{ marginTop: 6 }}>
+                            <NXPill kind="ai">
+                              {Icon.spark} quality {q.sender.quality_score}
+                            </NXPill>
+                          </div>
                         )}
                     </div>
                   </button>
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => handleReject(request.id)}
-                      disabled={processing === request.id}
-                      className="px-3 py-1.5 rounded text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-400 transition-colors disabled:opacity-50"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      onClick={() => handleApprove(request.id)}
-                      disabled={processing === request.id}
-                      className="px-3 py-1.5 rounded text-xs font-medium bg-green-600 hover:bg-green-700 text-white transition-colors disabled:opacity-50"
-                    >
-                      {processing === request.id ? "..." : "Approve"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+                );
+              })
+            )}
           </div>
-        )}
+
+          {/* Detail */}
+          <div style={{ padding: 28, overflow: "auto", minHeight: 0 }}>
+            {!selected ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "100%",
+                  gap: 8,
+                }}
+              >
+                <span className="t-serif" style={{ fontSize: 28 }}>
+                  Pick a request.
+                </span>
+                <span className="t-meta">
+                  Nothing selected — start with the highest-edge match.
+                </span>
+              </div>
+            ) : (
+              <>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 18,
+                    alignItems: "center",
+                  }}
+                >
+                  <NXAvatar
+                    size="xl"
+                    id={selected.sender.uid}
+                    name={selected.sender.name}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div className="t-eyebrow">
+                      {selected.sender.role === "mentor"
+                        ? "Mentor"
+                        : "Startup"}{" "}
+                      · {tab === "sent" ? "you contacted" : "wants to connect"}
+                    </div>
+                    <h2
+                      className="t-serif"
+                      style={{
+                        fontSize: 40,
+                        margin: "4px 0 0",
+                        letterSpacing: "-0.02em",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {selected.sender.name}
+                    </h2>
+                    <span
+                      className="t-meta"
+                      style={{
+                        fontFamily: "var(--font-serif)",
+                        fontStyle: "italic",
+                        fontSize: 16,
+                      }}
+                    >
+                      {selected.sender.industry}
+                    </span>
+                  </div>
+                  <span className="t-meta">
+                    {selected.created_at?.toDate?.()
+                      ? relTime(selected.created_at.toDate())
+                      : ""}
+                  </span>
+                </div>
+
+                {selected.sender.description && (
+                  <div
+                    style={{
+                      marginTop: 24,
+                      padding: 20,
+                      background: "var(--paper-2)",
+                      borderRadius: "var(--r-lg)",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: 15,
+                        lineHeight: 1.5,
+                        fontStyle: "italic",
+                        fontFamily: "var(--font-serif)",
+                      }}
+                    >
+                      &ldquo;{selected.sender.description}&rdquo;
+                    </p>
+                  </div>
+                )}
+
+                <div
+                  style={{ display: "flex", gap: 28, marginTop: 24 }}
+                >
+                  <Stat
+                    n={selected.sender.quality_score ?? "—"}
+                    l="Quality"
+                  />
+                  <Stat
+                    n={
+                      selected.sender.role === "mentor"
+                        ? `${selected.sender.years_experience ?? "—"}y`
+                        : selected.sender.stage ?? "—"
+                    }
+                    l={
+                      selected.sender.role === "mentor"
+                        ? "Tenure"
+                        : "Stage"
+                    }
+                  />
+                  <Stat
+                    n={
+                      selected.sender.role === "mentor"
+                        ? selected.sender.expertise_areas?.length ?? 0
+                        : selected.sender.tags?.tech_stack?.length ?? 0
+                    }
+                    l="Tags"
+                  />
+                </div>
+
+                <hr className="nx-rule" style={{ margin: "24px 0" }} />
+
+                {selected.sender.quality_summary && (
+                  <AICallout label="Why this request makes sense">
+                    {selected.sender.quality_summary}
+                  </AICallout>
+                )}
+
+                {selected.sender.role === "mentor" &&
+                  selected.sender.expertise_areas?.length && (
+                    <div style={{ marginTop: 24 }}>
+                      <div
+                        className="t-eyebrow"
+                        style={{ marginBottom: 10 }}
+                      >
+                        Expertise
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 6,
+                        }}
+                      >
+                        {selected.sender.expertise_areas.map((t) => (
+                          <NXPill key={t} kind="ai">
+                            {t}
+                          </NXPill>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {tab === "incoming" && selected.status === "pending" && (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      marginTop: 32,
+                      paddingTop: 20,
+                      borderTop: "1px solid var(--rule)",
+                    }}
+                  >
+                    <NXBtn
+                      kind="primary"
+                      onClick={() => handleApprove(selected)}
+                      disabled={processing}
+                    >
+                      {Icon.check} Approve & start chat
+                    </NXBtn>
+                    <NXBtn
+                      kind="ghost"
+                      onClick={() => handleReject(selected)}
+                      disabled={processing}
+                    >
+                      Decline politely
+                    </NXBtn>
+                    <div style={{ flex: 1 }} />
+                    <NXBtn
+                      kind="ghost"
+                      size="sm"
+                      onClick={() =>
+                        router.push(`/view/${selected.sender.uid}`)
+                      }
+                    >
+                      View full profile {Icon.arrow}
+                    </NXBtn>
+                  </div>
+                )}
+
+                {tab !== "incoming" && (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      marginTop: 32,
+                      paddingTop: 20,
+                      borderTop: "1px solid var(--rule)",
+                    }}
+                  >
+                    <NXPill
+                      kind={
+                        selected.status === "approved"
+                          ? "signal"
+                          : selected.status === "rejected"
+                          ? "crimson"
+                          : "amber"
+                      }
+                    >
+                      {selected.status}
+                    </NXPill>
+                    <div style={{ flex: 1 }} />
+                    <NXBtn
+                      kind="ghost"
+                      size="sm"
+                      onClick={() =>
+                        router.push(`/view/${selected.sender.uid}`)
+                      }
+                    >
+                      View full profile {Icon.arrow}
+                    </NXBtn>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
+}
+
+function Stat({ n, l }: { n: string | number; l: string }) {
+  return (
+    <div>
+      <div
+        className="t-serif"
+        style={{
+          fontSize: 28,
+          letterSpacing: "-0.02em",
+          lineHeight: 1,
+        }}
+      >
+        {n}
+      </div>
+      <div className="t-meta" style={{ marginTop: 4 }}>
+        {l}
+      </div>
+    </div>
+  );
+}
+
+function relTime(d: Date): string {
+  const diff = Date.now() - d.getTime();
+  const h = Math.floor(diff / 3600000);
+  if (h < 1) return "just now";
+  if (h < 24) return `${h}h ago`;
+  const days = Math.floor(h / 24);
+  if (days < 30) return `${days}d ago`;
+  return d.toLocaleDateString();
 }

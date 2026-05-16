@@ -5,21 +5,9 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
 const ROLE_CONFIG = {
-  startup: {
-    label: "Startup",
-    badge: "bg-green-500/20 text-green-400 border-green-500/30",
-    route: "/chat",
-  },
-  mentor: {
-    label: "Mentor",
-    badge: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    route: "/chat",
-  },
-  admin: {
-    label: "Programme Manager",
-    badge: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-    route: "/admin/dashboard",
-  },
+  startup: { label: "Startup", route: "/dashboard" },
+  mentor: { label: "Mentor", route: "/dashboard" },
+  admin: { label: "Programme Manager", route: "/admin/dashboard" },
 } as const;
 
 type RoleKey = keyof typeof ROLE_CONFIG;
@@ -41,9 +29,9 @@ export default function RoleSwitcher() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  if (!user) return null;
+  if (!user || !profile) return null;
 
-  const currentRole = (profile?.role ?? "startup") as RoleKey;
+  const currentRole = (profile.role ?? "startup") as RoleKey;
   const current = ROLE_CONFIG[currentRole];
 
   async function handleSwitch(targetRole: RoleKey) {
@@ -68,22 +56,51 @@ export default function RoleSwitcher() {
   }
 
   return (
-    <div ref={ref} className="fixed bottom-6 right-6 z-50">
+    <div
+      ref={ref}
+      style={{
+        position: "fixed",
+        bottom: 20,
+        right: 20,
+        zIndex: 50,
+      }}
+    >
       {open && (
-        <div className="mb-2 bg-gray-900 border border-gray-700 rounded-xl shadow-lg shadow-black/50 p-1 min-w-[200px]">
+        <div
+          className="nx-card"
+          style={{
+            marginBottom: 8,
+            padding: 4,
+            minWidth: 220,
+            boxShadow: "var(--shadow-lg)",
+          }}
+        >
+          <div
+            className="t-eyebrow"
+            style={{ padding: "8px 12px 4px" }}
+          >
+            Demo · switch role
+          </div>
           {(Object.keys(ROLE_CONFIG) as RoleKey[]).map((role) => {
             const cfg = ROLE_CONFIG[role];
-            const isActive = role === currentRole;
+            const active = role === currentRole;
             return (
               <button
                 key={role}
                 onClick={() => handleSwitch(role)}
                 disabled={switching}
-                className={`w-full text-left px-4 py-2.5 rounded-lg text-sm transition-all duration-200 ${
-                  isActive
-                    ? "ring-2 ring-blue-500 bg-gray-800 text-white"
-                    : "text-gray-300 hover:bg-gray-800 hover:text-white"
-                }`}
+                style={{
+                  all: "unset",
+                  width: "100%",
+                  padding: "9px 12px",
+                  borderRadius: 8,
+                  cursor: switching ? "wait" : "pointer",
+                  fontSize: 13,
+                  background: active ? "var(--ink)" : "transparent",
+                  color: active ? "var(--paper)" : "var(--ink)",
+                  boxSizing: "border-box",
+                  display: "block",
+                }}
               >
                 {cfg.label}
               </button>
@@ -94,50 +111,28 @@ export default function RoleSwitcher() {
 
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-full px-4 py-2 shadow-lg shadow-black/50 hover:bg-gray-800 transition-all duration-200"
+        className="nx-btn nx-btn--ghost nx-btn--sm"
+        style={{
+          background: "var(--paper)",
+          boxShadow: "var(--shadow-md)",
+        }}
       >
-        {switching ? (
-          <svg
-            className="animate-spin h-4 w-4 text-white"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-              fill="none"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-            />
-          </svg>
-        ) : (
-          <span
-            className={`text-xs px-2 py-0.5 rounded-full border ${current.badge}`}
-          >
-            {current.label}
-          </span>
-        )}
-        <svg
-          className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
-            open ? "rotate-180" : ""
-          }`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+        <span
+          className="nx-dot"
+          style={{
+            background: "var(--signal)",
+          }}
+        />
+        {switching ? "Switching…" : current.label}
+        <span
+          style={{
+            transform: open ? "rotate(180deg)" : "none",
+            transition: "transform .2s",
+            display: "inline-flex",
+          }}
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
+          ▾
+        </span>
       </button>
     </div>
   );

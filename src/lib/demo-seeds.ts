@@ -55,14 +55,14 @@ export const DEMO_SEEDS: Record<string, DemoSeed["profile"]> = {
     ],
     years_experience: 15,
     past_mentoring:
-      "Mentored 30+ startups across Cradle, MaGIC, and Endeavour programmes.",
+      "Mentored 30+ startups across MaGIC, Endeavour, and national accelerator programmes.",
   },
   admin: {
     role: "admin",
     name: "CIP Programme Manager (Demo)",
     email: "demo-admin@nexus.com",
     description:
-      "Managing the Cradle Investment Programme (CIP) accelerator. Oversees mentor-startup matching and programme health.",
+      "Managing the innovation accelerator programme. Oversees mentor-startup matching and programme health.",
     industry: "Programme Management",
   },
 };

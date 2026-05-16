@@ -1,8 +1,73 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────────
+   NEXUS — design tokens (ported from Claude Design handoff)
+   Editorial-tech: warm paper background, ink near-black, signal-green
+   accent for "healthy" and amber/red for at-risk.
+   ─────────────────────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Type — sans + mono are wired in layout.tsx via next/font; serif via <link> */
+  --font-serif: var(--font-instrument-serif), 'Instrument Serif', 'Times New Roman', serif;
+  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Paper palette (warm, near-white) */
+  --paper:        oklch(0.985 0.006 80);
+  --paper-2:      oklch(0.965 0.006 80);
+  --paper-3:      oklch(0.945 0.006 80);
+  --ink:          oklch(0.18 0.01 80);
+  --ink-2:        oklch(0.35 0.01 80);
+  --ink-3:        oklch(0.55 0.01 80);
+  --ink-4:        oklch(0.72 0.008 80);
+  --rule:         oklch(0.89 0.008 80);
+  --rule-strong:  oklch(0.78 0.008 80);
+
+  /* Signal — health colors */
+  --signal:       oklch(0.70 0.16 145);
+  --signal-soft:  oklch(0.94 0.06 145);
+  --signal-ink:   oklch(0.40 0.12 145);
+  --amber:        oklch(0.78 0.16 75);
+  --amber-soft:   oklch(0.95 0.06 80);
+  --amber-ink:    oklch(0.45 0.13 60);
+  --crimson:      oklch(0.62 0.20 25);
+  --crimson-soft: oklch(0.95 0.04 25);
+  --crimson-ink:  oklch(0.42 0.16 25);
+
+  /* AI / insight (cool ink) */
+  --ai:           oklch(0.42 0.10 260);
+  --ai-soft:      oklch(0.94 0.03 260);
+
+  /* Accent (configurable) */
+  --accent:       var(--ink);
+  --accent-soft:  var(--paper-3);
+
+  /* Radii / shadow */
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 14px;
+  --r-xl: 22px;
+  --shadow-sm: 0 1px 0 oklch(0.78 0.008 80 / 0.5);
+  --shadow-md: 0 1px 2px rgba(20,18,12,.05), 0 6px 24px -8px rgba(20,18,12,.10);
+  --shadow-lg: 0 2px 4px rgba(20,18,12,.06), 0 18px 60px -16px rgba(20,18,12,.18);
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+}
+
+[data-theme="dark"] {
+  --paper:        oklch(0.16 0.008 80);
+  --paper-2:      oklch(0.20 0.008 80);
+  --paper-3:      oklch(0.24 0.008 80);
+  --ink:          oklch(0.96 0.005 80);
+  --ink-2:        oklch(0.82 0.005 80);
+  --ink-3:        oklch(0.62 0.008 80);
+  --ink-4:        oklch(0.42 0.008 80);
+  --rule:         oklch(0.30 0.008 80);
+  --rule-strong:  oklch(0.42 0.008 80);
+  --signal-soft:  oklch(0.32 0.08 145);
+  --amber-soft:   oklch(0.32 0.08 75);
+  --crimson-soft: oklch(0.32 0.10 25);
+  --ai-soft:      oklch(0.28 0.05 260);
 }
 
 @theme inline {
@@ -12,15 +77,123 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body { background: var(--paper); color: var(--ink); font-family: var(--font-sans); }
+body { -webkit-font-smoothing: antialiased; font-feature-settings: "ss01","cv11"; line-height: 1.4; }
+
+/* ─── Typography utilities ─── */
+.t-serif { font-family: var(--font-serif); font-weight: 400; letter-spacing: -0.01em; }
+.t-mono  { font-family: var(--font-mono); font-feature-settings: "tnum"; }
+.t-sans  { font-family: var(--font-sans); }
+
+.t-eyebrow { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.t-meta    { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.t-label   { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--ink-3); }
+.t-num     { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ─── Buttons ─── */
+.nx-btn {
+  font-family: var(--font-sans); font-weight: 500; font-size: 13px;
+  border-radius: 999px; padding: 8px 14px; border: 1px solid transparent;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  transition: background .15s, color .15s, border-color .15s, transform .05s;
+  background: transparent; color: var(--ink); white-space: nowrap;
+}
+.nx-btn:active { transform: translateY(0.5px); }
+.nx-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.nx-btn--primary { background: var(--ink); color: var(--paper); }
+.nx-btn--primary:hover:not(:disabled) { background: var(--ink-2); }
+.nx-btn--ghost { border-color: var(--rule); color: var(--ink); }
+.nx-btn--ghost:hover:not(:disabled) { background: var(--paper-2); }
+.nx-btn--accent { background: var(--accent); color: var(--paper); }
+.nx-btn--danger { background: var(--crimson); color: var(--paper); }
+.nx-btn--danger:hover:not(:disabled) { background: var(--crimson-ink); }
+.nx-btn--sm { font-size: 12px; padding: 5px 10px; }
+
+/* ─── Surfaces ─── */
+.nx-card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+}
+.nx-card--flat {
+  background: var(--paper-2);
+  border: 1px solid transparent;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ─── Pill / badge ─── */
+.nx-pill {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+  padding: 3px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--rule); color: var(--ink-2); background: var(--paper);
 }
+.nx-pill--signal { background: var(--signal-soft); color: var(--signal-ink); border-color: transparent; }
+.nx-pill--amber  { background: var(--amber-soft);  color: var(--amber-ink);  border-color: transparent; }
+.nx-pill--crimson{ background: var(--crimson-soft);color: var(--crimson-ink);border-color: transparent; }
+.nx-pill--ai     { background: var(--ai-soft);     color: var(--ai);         border-color: transparent; }
+.nx-pill--ink    { background: var(--ink);         color: var(--paper);      border-color: var(--ink); }
+
+/* ─── Rules ─── */
+.nx-rule { height: 1px; background: var(--rule); border: 0; margin: 0; }
+.nx-rule--dashed { background: transparent; border-top: 1px dashed var(--rule-strong); }
+
+/* ─── App shell ─── */
+.nx-shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; background: var(--paper); }
+.nx-sidebar { background: var(--paper-2); border-right: 1px solid var(--rule); padding: 24px 16px; display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; height: 100vh; }
+.nx-sidebar__brand { font-family: var(--font-serif); font-size: 26px; font-style: italic; letter-spacing: -0.02em; display: flex; align-items: baseline; gap: 6px; padding: 0 10px 18px; color: var(--ink); }
+.nx-sidebar__brand small { font-family: var(--font-mono); font-style: normal; font-size: 9px; letter-spacing: 0.18em; color: var(--ink-3); text-transform: uppercase; }
+.nx-sidebar__group { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em; color: var(--ink-4); text-transform: uppercase; padding: 14px 10px 6px; }
+.nx-nav { display: flex; flex-direction: column; gap: 1px; }
+.nx-nav__item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; font-size: 13px; color: var(--ink-2); cursor: pointer; text-decoration: none; }
+.nx-nav__item:hover { background: var(--paper-3); color: var(--ink); }
+.nx-nav__item--active { background: var(--ink); color: var(--paper); }
+.nx-nav__item--active:hover { background: var(--ink); color: var(--paper); }
+
+/* ─── Topbar ─── */
+.nx-topbar { display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 1px solid var(--rule); background: var(--paper); }
+.nx-topbar__title { font-family: var(--font-serif); font-size: 24px; letter-spacing: -0.01em; flex: 1; color: var(--ink); margin: 0; }
+.nx-search { flex: 1; max-width: 360px; display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--paper-2); border: 1px solid var(--rule); border-radius: 999px; font-size: 12px; color: var(--ink-3); }
+
+/* ─── Avatar ─── */
+.nx-avatar { width: 40px; height: 40px; border-radius: 999px; background: var(--ink); color: var(--paper); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-serif); font-size: 18px; letter-spacing: -0.02em; flex: 0 0 auto; overflow: hidden; }
+.nx-avatar--sm { width: 28px; height: 28px; font-size: 13px; }
+.nx-avatar--md { width: 40px; height: 40px; font-size: 18px; }
+.nx-avatar--lg { width: 56px; height: 56px; font-size: 24px; }
+.nx-avatar--xl { width: 88px; height: 88px; font-size: 36px; }
+.nx-avatar--paper { background: var(--paper-3); color: var(--ink); }
+
+/* ─── Stat tile ─── */
+.nx-stat { display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid var(--rule); border-radius: var(--r-lg); background: var(--paper); }
+.nx-stat__label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+.nx-stat__value { font-family: var(--font-serif); font-size: 38px; line-height: 1; letter-spacing: -0.02em; color: var(--ink); }
+.nx-stat__delta { font-family: var(--font-mono); font-size: 10px; color: var(--signal-ink); }
+
+/* ─── Form field ─── */
+.nx-field { display: flex; flex-direction: column; gap: 6px; }
+.nx-field label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--ink-3); }
+.nx-field input, .nx-field textarea, .nx-field select {
+  font-family: var(--font-sans); font-size: 14px; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-md);
+  padding: 10px 12px; outline: none;
+}
+.nx-field input:focus, .nx-field textarea:focus, .nx-field select:focus { border-color: var(--ink); }
+.nx-field input::placeholder, .nx-field textarea::placeholder { color: var(--ink-4); }
+
+/* ─── Designed scroll regions ─── */
+.nx-scroll { overflow: auto; }
+.nx-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.nx-scroll::-webkit-scrollbar-thumb { background: var(--rule-strong); border-radius: 3px; }
+
+/* ─── Misc ─── */
+.nx-dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; }
+.nx-dot--signal { background: var(--signal); }
+.nx-dot--amber  { background: var(--amber); }
+.nx-dot--crimson{ background: var(--crimson); }
+.nx-dot--ink    { background: var(--ink); }
+
+.nx-link { color: var(--ink); text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 3px; cursor: pointer; }
+.nx-link:hover { text-decoration-color: var(--ink); }
+
+/* ─── Phone frame ─── */
+.nx-phone { width: 360px; height: 740px; border-radius: 38px; padding: 12px; background: var(--ink); position: relative; }
+.nx-phone__screen { width: 100%; height: 100%; background: var(--paper); border-radius: 28px; overflow: hidden; position: relative; }
+.nx-phone__notch { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); width: 100px; height: 24px; background: var(--ink); border-radius: 999px; z-index: 2; }

@@ -3,6 +3,7 @@
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { Icon, NXBtn, NXPill } from "@/components/nx";
 
 export default function Home() {
   const { user, profile, loading, signInWithGoogle } = useAuth();
@@ -10,77 +11,412 @@ export default function Home() {
 
   useEffect(() => {
     if (!loading && user && profile) {
-      if (profile.role === "admin") {
-        router.push("/admin/dashboard");
-      } else {
-        router.push("/chat");
-      }
+      router.push(profile.role === "admin" ? "/admin/dashboard" : "/dashboard");
     } else if (!loading && user && !profile) {
-      router.push("/auth/setup");
+      router.push("/auth/role-select");
     }
   }, [user, profile, loading, router]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950">
-        <div className="animate-pulse text-white text-lg">Loading...</div>
-      </div>
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--paper)",
+        }}
+      >
+        <span className="t-meta">Loading…</span>
+      </main>
     );
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-gray-950 text-white px-4">
-      <div className="max-w-2xl text-center space-y-8">
-        <div className="space-y-4">
-          <h1 className="text-5xl font-bold tracking-tight">
-            NEX<span className="text-blue-400">US</span>
-          </h1>
-          <p className="text-xl text-gray-300">
-            AI Relationship Operating System
-          </p>
-          <p className="text-sm text-gray-500 max-w-md mx-auto">
-            No ratings. Only actions. NEXUS remembers.
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <button
-            onClick={signInWithGoogle}
-            className="inline-flex items-center gap-3 bg-white text-gray-900 px-6 py-3 rounded-lg font-medium hover:bg-gray-100 transition-colors"
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "var(--paper)",
+        color: "var(--ink)",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* Top nav */}
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "20px 40px",
+          borderBottom: "1px solid var(--rule)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: 8,
+            flex: 1,
+          }}
+        >
+          <span
+            className="t-serif"
+            style={{
+              fontSize: 26,
+              fontStyle: "italic",
+              letterSpacing: "-0.02em",
+            }}
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+            Nexus
+          </span>
+          <span
+            className="t-mono"
+            style={{
+              fontSize: 9,
+              letterSpacing: "0.18em",
+              color: "var(--ink-3)",
+              textTransform: "uppercase",
+            }}
+          >
+            OS · v0.4
+          </span>
+        </div>
+        <nav style={{ display: "flex", gap: 28, alignItems: "center" }}>
+          {["Why Nexus", "Programmes", "For Admins", "Manifesto"].map((x) => (
+            <a
+              key={x}
+              style={{ fontSize: 13, color: "var(--ink-2)", cursor: "pointer" }}
+            >
+              {x}
+            </a>
+          ))}
+          <NXBtn kind="ghost" size="sm" onClick={signInWithGoogle}>
+            Log in
+          </NXBtn>
+          <NXBtn kind="primary" size="sm" onClick={signInWithGoogle}>
+            Get access {Icon.arrow}
+          </NXBtn>
+        </nav>
+      </header>
+
+      {/* Hero */}
+      <section
+        style={{
+          padding: "64px 40px 40px",
+          display: "grid",
+          gridTemplateColumns: "1.1fr 1fr",
+          gap: 56,
+          alignItems: "center",
+          flex: 1,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 24,
+            }}
+          >
+            <NXPill kind="ink">
+              <span
+                className="nx-dot"
+                style={{ background: "var(--signal)" }}
               />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-              />
-            </svg>
-            Sign in with Google
-          </button>
+              LIVE — Q1 2026 Cohort
+            </NXPill>
+            <span className="t-meta">42 days · 18 mentors · 24 startups</span>
+          </div>
+          <h1
+            className="t-serif"
+            style={{
+              fontSize: 92,
+              lineHeight: 0.95,
+              margin: 0,
+              letterSpacing: "-0.03em",
+            }}
+          >
+            Relationships
+            <br />
+            <em>aren&rsquo;t ratings.</em>
+            <br />
+            They are{" "}
+            <span style={{ borderBottom: "4px solid var(--ink)" }}>
+              signals.
+            </span>
+          </h1>
+          <p
+            style={{
+              fontSize: 18,
+              color: "var(--ink-2)",
+              maxWidth: 540,
+              marginTop: 28,
+              lineHeight: 1.45,
+            }}
+          >
+            Nexus is the relationship operating system for innovation
+            ecosystems. We read pitch decks, generate matches, and watch the
+            relationship breathe — quietly, continuously, without surveys.
+          </p>
+          <div style={{ display: "flex", gap: 12, marginTop: 32 }}>
+            <NXBtn kind="primary" onClick={signInWithGoogle}>
+              Continue with Google {Icon.arrow}
+            </NXBtn>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: 40,
+              marginTop: 56,
+              paddingTop: 24,
+              borderTop: "1px solid var(--rule)",
+            }}
+          >
+            {(
+              [
+                ["No ratings.", "Behavioural signals only."],
+                ["Cross-cohort memory.", "Every match makes the next smarter."],
+                ["Physical-digital bridge.", "QR badges at every event."],
+              ] as const
+            ).map(([t, s]) => (
+              <div key={t} style={{ flex: 1 }}>
+                <div
+                  className="t-mono"
+                  style={{ fontSize: 11, fontWeight: 500 }}
+                >
+                  {t}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--ink-3)",
+                    marginTop: 4,
+                  }}
+                >
+                  {s}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="pt-8 border-t border-gray-800 text-sm text-gray-500 space-y-2">
-          <p>Built for innovation ecosystems like Cradle Fund</p>
-          <div className="flex items-center justify-center gap-4 text-xs">
-            <span>Powered by Gemini AI</span>
-            <span>&middot;</span>
-            <span>Firebase</span>
-            <span>&middot;</span>
-            <span>MyHack 2026</span>
+        <HeroNetwork />
+      </section>
+
+      {/* Footer strip */}
+      <section
+        style={{
+          padding: "24px 40px",
+          borderTop: "1px solid var(--rule)",
+          display: "flex",
+          gap: 40,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <span className="t-eyebrow">Powering</span>
+        {[
+          "Innovation Spark",
+          "Growth Catalyst",
+          "Deep Tech",
+          "LIVE! Edition",
+        ].map((p) => (
+          <span
+            key={p}
+            className="t-serif"
+            style={{
+              fontSize: 22,
+              fontStyle: "italic",
+              color: "var(--ink-3)",
+            }}
+          >
+            {p}
+          </span>
+        ))}
+        <div style={{ flex: 1 }} />
+        <span className="t-meta">Built with Gemini · Firebase · Vercel</span>
+      </section>
+    </main>
+  );
+}
+
+function HeroNetwork() {
+  const nodes = [
+    { id: "m1", x: 60, y: 80, r: 22, kind: "mentor", label: "Daniel" },
+    { id: "m2", x: 410, y: 50, r: 22, kind: "mentor", label: "Suraya" },
+    { id: "m3", x: 480, y: 290, r: 22, kind: "mentor", label: "Dr. Wong" },
+    { id: "s1", x: 200, y: 200, r: 28, kind: "startup", label: "Veridian" },
+    { id: "s2", x: 320, y: 360, r: 26, kind: "startup", label: "Pondok" },
+    { id: "s3", x: 100, y: 360, r: 24, kind: "startup", label: "Lapis" },
+    { id: "s4", x: 380, y: 160, r: 28, kind: "startup", label: "Tropika" },
+  ];
+  const edges = [
+    { a: "m3", b: "s1", h: "signal" },
+    { a: "m1", b: "s3", h: "signal" },
+    { a: "m1", b: "s4", h: "amber" },
+    { a: "m2", b: "s2", h: "signal" },
+    { a: "m3", b: "s2", h: "crimson" },
+    { a: "m2", b: "s4", h: "amber" },
+    { a: "m3", b: "s4", h: "signal" },
+  ];
+  const n = (id: string) => nodes.find((x) => x.id === id)!;
+  const cmap: Record<string, string> = {
+    signal: "var(--signal)",
+    amber: "var(--amber)",
+    crimson: "var(--crimson)",
+  };
+  return (
+    <div
+      style={{
+        position: "relative",
+        aspectRatio: "1/1",
+        width: "100%",
+        maxWidth: 540,
+        marginInline: "auto",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          border: "1px solid var(--rule)",
+          borderRadius: "var(--r-xl)",
+          background: "var(--paper-2)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 16,
+            left: 20,
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          <span className="t-eyebrow">Ecosystem · Sample</span>
+          <span className="t-serif" style={{ fontSize: 22, fontStyle: "italic" }}>
+            Innovation Spark
+          </span>
+        </div>
+        <div
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 20,
+            display: "flex",
+            gap: 8,
+          }}
+        >
+          <NXPill kind="signal">
+            <span className="nx-dot nx-dot--signal" />
+            healthy
+          </NXPill>
+          <NXPill kind="amber">
+            <span className="nx-dot nx-dot--amber" />
+            stable
+          </NXPill>
+          <NXPill kind="crimson">
+            <span className="nx-dot nx-dot--crimson" />
+            decaying
+          </NXPill>
+        </div>
+
+        <svg
+          viewBox="0 0 540 440"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+          }}
+        >
+          {edges.map((e, i) => {
+            const A = n(e.a);
+            const B = n(e.b);
+            return (
+              <line
+                key={i}
+                x1={A.x}
+                y1={A.y}
+                x2={B.x}
+                y2={B.y}
+                stroke={cmap[e.h]}
+                strokeWidth={e.h === "crimson" ? 1.5 : 2.5}
+                strokeDasharray={e.h === "crimson" ? "4 4" : ""}
+                opacity="0.85"
+              />
+            );
+          })}
+          {nodes.map((node) => (
+            <g key={node.id}>
+              <circle
+                cx={node.x}
+                cy={node.y}
+                r={node.r}
+                fill={node.kind === "mentor" ? "var(--ink)" : "var(--paper)"}
+                stroke="var(--ink)"
+                strokeWidth="1.5"
+              />
+              <text
+                x={node.x}
+                y={node.y + 4}
+                textAnchor="middle"
+                fontFamily="Instrument Serif"
+                fontSize={node.kind === "mentor" ? 14 : 12}
+                fill={node.kind === "mentor" ? "var(--paper)" : "var(--ink)"}
+                fontStyle="italic"
+              >
+                {node.label.split(" ")[0]}
+              </text>
+            </g>
+          ))}
+        </svg>
+
+        <div
+          style={{
+            position: "absolute",
+            right: 16,
+            bottom: 16,
+            maxWidth: 230,
+            background: "var(--paper)",
+            border: "1px solid var(--rule)",
+            borderRadius: "var(--r-md)",
+            padding: 12,
+          }}
+        >
+          <div
+            className="t-mono"
+            style={{
+              fontSize: 9,
+              letterSpacing: "0.14em",
+              color: "var(--ai)",
+              textTransform: "uppercase",
+              marginBottom: 4,
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            {Icon.spark} Health narration
+          </div>
+          <div
+            className="t-serif"
+            style={{
+              fontSize: 14,
+              fontStyle: "italic",
+              lineHeight: 1.35,
+              color: "var(--ink-2)",
+            }}
+          >
+            Veridian ↔ Dr. Wong has shipped 4 of 6 milestones and is improving.
+            The pairing matters: MARDI grant is at week 8.
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

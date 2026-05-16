@@ -13,7 +13,16 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Programme, ProgrammeRegistration } from "@/lib/types";
-import NavBar from "@/components/NavBar";
+import {
+  Icon,
+  NXBtn,
+  NXPill,
+  NXSearch,
+  NXSidebar,
+  NXTopbar,
+} from "@/components/nx";
+
+type FilterKey = "all" | "open" | "active" | "completed" | "eligible";
 
 export default function ProgrammesPage() {
   const { user, profile, loading } = useAuth();
@@ -23,6 +32,8 @@ export default function ProgrammesPage() {
   const [registrations, setRegistrations] = useState<ProgrammeRegistration[]>([]);
   const [registering, setRegistering] = useState<string | null>(null);
   const [selectedProgramme, setSelectedProgramme] = useState<Programme | null>(null);
+  const [filter, setFilter] = useState<FilterKey>("all");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!loading && !user) router.push("/");
@@ -32,10 +43,12 @@ export default function ProgrammesPage() {
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "programmes"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setProgrammes(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Programme)));
-    });
-    return () => unsubscribe();
+    const unsub = onSnapshot(q, (snap) =>
+      setProgrammes(
+        snap.docs.map((d) => ({ id: d.id, ...d.data() } as Programme))
+      )
+    );
+    return () => unsub();
   }, [user]);
 
   useEffect(() => {
@@ -44,20 +57,19 @@ export default function ProgrammesPage() {
       collection(db, "programme_registrations"),
       where("user_id", "==", user.uid)
     );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsub = onSnapshot(q, (snap) =>
       setRegistrations(
-        snapshot.docs.map(
+        snap.docs.map(
           (d) => ({ id: d.id, ...d.data() } as ProgrammeRegistration)
         )
-      );
-    });
-    return () => unsubscribe();
+      )
+    );
+    return () => unsub();
   }, [user]);
 
   const handleRegister = async (programmeId: string) => {
     if (!user || !profile) return;
     setRegistering(programmeId);
-
     try {
       await addDoc(collection(db, "programme_registrations"), {
         programme_id: programmeId,
@@ -69,237 +81,439 @@ export default function ProgrammesPage() {
     } catch (err) {
       console.error("Failed to register:", err);
     }
-
     setRegistering(null);
   };
 
-  const getRegistration = (
-    programmeId: string
-  ): ProgrammeRegistration | undefined => {
-    return registrations.find((r) => r.programme_id === programmeId);
-  };
+  const getRegistration = (id: string) =>
+    registrations.find((r) => r.programme_id === id);
 
-  const isEligible = (prog: Programme): boolean => {
+  const isEligible = (p: Programme) => {
     if (!profile) return false;
     if (profile.role === "mentor") return true;
-    return (profile.quality_score || 0) >= prog.match_threshold;
+    return (profile.quality_score || 0) >= p.match_threshold;
   };
 
-  const registeredProgrammeIds = new Set(
-    registrations.map((r) => r.programme_id)
-  );
+  const filtered = programmes.filter((p) => {
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
+    switch (filter) {
+      case "open":
+        return p.status === "active" && (!getRegistration(p.id));
+      case "active":
+        return p.status === "active";
+      case "completed":
+        return p.status === "completed";
+      case "eligible":
+        return isEligible(p);
+      default:
+        return true;
+    }
+  });
 
-  const availableProgrammes = programmes.filter(
-    (p) => !registeredProgrammeIds.has(p.id) && isEligible(p)
-  );
-  const notEligibleProgrammes = programmes.filter(
-    (p) => !registeredProgrammeIds.has(p.id) && !isEligible(p)
-  );
-  const registeredProgrammes = programmes.filter((p) =>
-    registeredProgrammeIds.has(p.id)
-  );
-
-  const formatDate = (timestamp?: Timestamp) => {
-    if (!timestamp?.toDate) return "TBD";
-    return timestamp.toDate().toLocaleDateString("en-MY", {
+  const formatDate = (ts?: Timestamp) => {
+    if (!ts?.toDate) return null;
+    return ts.toDate().toLocaleDateString("en-MY", {
       day: "numeric",
       month: "short",
       year: "numeric",
     });
   };
 
-  const formatDateTime = (timestamp?: Timestamp) => {
-    if (!timestamp?.toDate) return "TBD";
-    return timestamp.toDate().toLocaleString("en-MY", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const daysLeft = (ts?: Timestamp) => {
+    if (!ts?.toDate) return null;
+    const diff = ts.toDate().getTime() - Date.now();
+    const d = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    return d > 0 ? d : 0;
   };
 
   if (loading || !profile) return null;
 
+  const filters: { key: FilterKey; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "open", label: "Open enrolment" },
+    { key: "active", label: "Active" },
+    { key: "completed", label: "Completed" },
+    { key: "eligible", label: "Eligible to me" },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <NavBar />
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-6">Programmes</h1>
+    <div className="nx-shell">
+      <NXSidebar current="programmes" />
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <NXTopbar eyebrow="Programmes" title="Browse cohorts.">
+          <NXSearch
+            style={{ maxWidth: 320 }}
+            placeholder="Search programmes…"
+            value={search}
+            onChange={setSearch}
+          />
+          <NXBtn
+            kind="primary"
+            size="sm"
+            onClick={() => router.push("/account")}
+          >
+            Edit my profile {Icon.arrow}
+          </NXBtn>
+        </NXTopbar>
 
-        {/* Available Programmes */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold mb-4 text-gray-300">
-            Available Programmes
-          </h2>
-          {availableProgrammes.length === 0 ? (
-            <p className="text-gray-500 text-sm">
-              No available programmes at the moment.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {availableProgrammes.map((prog) => (
-                <ProgrammeCard
-                  key={prog.id}
-                  programme={prog}
-                  registration={getRegistration(prog.id)}
-                  onRegister={handleRegister}
-                  registering={registering === prog.id}
-                  onViewDetails={setSelectedProgramme}
-                  formatDate={formatDate}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Not Eligible (Startups only) */}
-        {profile.role === "startup" && notEligibleProgrammes.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold mb-4 text-gray-300">
-              Not Eligible
-            </h2>
-            <p className="text-xs text-gray-500 mb-3">
-              These programmes require a higher quality score than your current
-              score ({profile.quality_score || 0}/100).
-            </p>
-            <div className="space-y-3">
-              {notEligibleProgrammes.map((prog) => (
-                <div
-                  key={prog.id}
-                  className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 opacity-70"
+        <div
+          className="nx-scroll"
+          style={{ padding: 28, overflow: "auto" }}
+        >
+          <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
+            {filters.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                style={{ all: "unset", cursor: "pointer" }}
+              >
+                <span
+                  className={`nx-pill ${filter === key ? "nx-pill--ink" : ""}`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-medium text-gray-400">
-                        {prog.name}
-                      </h3>
-                      <p className="text-xs text-gray-600 mt-1">
-                        Requires quality score: {prog.match_threshold}/100
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setSelectedProgramme(prog)}
-                      className="text-xs text-gray-500 hover:text-gray-400"
-                    >
-                      Details
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  {label}
+                </span>
+              </button>
+            ))}
           </div>
-        )}
 
-        {/* Registered Programmes */}
-        <div>
-          <h2 className="text-lg font-semibold mb-4 text-gray-300">
-            Registered Programmes
-          </h2>
-          {registeredProgrammes.length === 0 ? (
-            <p className="text-gray-500 text-sm">
-              You haven&apos;t registered for any programmes yet.
-            </p>
+          {filtered.length === 0 ? (
+            <div
+              className="t-meta"
+              style={{ padding: 40, textAlign: "center" }}
+            >
+              No programmes match this filter.
+            </div>
           ) : (
-            <div className="space-y-3">
-              {registeredProgrammes.map((prog) => {
-                const reg = getRegistration(prog.id);
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: 16,
+              }}
+            >
+              {filtered.map((p) => {
+                const reg = getRegistration(p.id);
+                const eligible = isEligible(p);
+                const dl = daysLeft(p.end_date);
                 return (
-                  <ProgrammeCard
-                    key={prog.id}
-                    programme={prog}
-                    registration={reg}
-                    onRegister={handleRegister}
-                    registering={registering === prog.id}
-                    onViewDetails={setSelectedProgramme}
-                    formatDate={formatDate}
-                    isRegistered
-                  />
+                  <div
+                    key={p.id}
+                    className="nx-card"
+                    style={{
+                      padding: 22,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 14,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <div>
+                        <div className="t-eyebrow">
+                          {formatDate(p.start_date) ?? "TBD"} · Nexus
+                        </div>
+                        <h3
+                          className="t-serif"
+                          style={{
+                            fontSize: 30,
+                            margin: "6px 0 0",
+                            letterSpacing: "-0.01em",
+                          }}
+                        >
+                          {p.name}
+                        </h3>
+                      </div>
+                      <NXPill
+                        kind={p.status === "active" ? "signal" : "default"}
+                      >
+                        {p.status === "active" ? "● live" : "○ completed"}
+                      </NXPill>
+                    </div>
+
+                    <p
+                      style={{
+                        fontSize: 13,
+                        color: "var(--ink-2)",
+                        margin: 0,
+                        lineHeight: 1.45,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {p.description || "No description provided."}
+                    </p>
+
+                    <hr className="nx-rule" style={{ margin: "4px 0" }} />
+
+                    <div style={{ display: "flex", gap: 28 }}>
+                      <Stat
+                        n={p.capacity ?? "—"}
+                        l="Capacity"
+                      />
+                      <Stat n={p.match_threshold} l="Quality gate" />
+                      <Stat
+                        n={dl ?? "—"}
+                        l={dl ? "Days left" : "Date TBD"}
+                      />
+                    </div>
+
+                    {p.venue && (
+                      <div className="t-meta">📍 {p.venue}</div>
+                    )}
+
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <NXBtn
+                        kind="ghost"
+                        size="sm"
+                        onClick={() => setSelectedProgramme(p)}
+                      >
+                        View details
+                      </NXBtn>
+                      {p.status === "active" && !reg && eligible && (
+                        <NXBtn
+                          kind="primary"
+                          size="sm"
+                          onClick={() => handleRegister(p.id)}
+                          disabled={registering === p.id}
+                        >
+                          {registering === p.id ? "…" : "Register"} {Icon.arrow}
+                        </NXBtn>
+                      )}
+                      {p.status === "active" && !reg && !eligible && (
+                        <NXPill kind="crimson">
+                          Need {p.match_threshold}+ quality
+                        </NXPill>
+                      )}
+                      {reg && (
+                        <NXPill
+                          kind={
+                            reg.status === "approved"
+                              ? "signal"
+                              : reg.status === "rejected"
+                              ? "crimson"
+                              : "amber"
+                          }
+                        >
+                          {reg.status}
+                        </NXPill>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>
           )}
         </div>
+      </div>
 
-        {/* Programme Detail Modal */}
-        {selectedProgramme && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-            <div className="bg-gray-900 border border-gray-700 rounded-lg w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-4 border-b border-gray-700">
-                <h2 className="font-bold text-lg">
-                  {selectedProgramme.name}
-                </h2>
-                <button
-                  onClick={() => setSelectedProgramme(null)}
-                  className="text-gray-400 hover:text-white"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="p-4 space-y-4">
-                <p className="text-gray-300">
-                  {selectedProgramme.description}
-                </p>
+      {selectedProgramme && (
+        <ProgrammeModal
+          programme={selectedProgramme}
+          onClose={() => setSelectedProgramme(null)}
+          eligible={isEligible(selectedProgramme)}
+          profileScore={profile.quality_score}
+        />
+      )}
+    </div>
+  );
+}
 
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-gray-500">Start Date</p>
-                    <p>{formatDateTime(selectedProgramme.start_date)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">End Date</p>
-                    <p>{formatDateTime(selectedProgramme.end_date)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Venue</p>
-                    <p>{selectedProgramme.venue || "TBD"}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Registration Deadline</p>
-                    <p>
-                      {formatDateTime(
-                        selectedProgramme.registration_deadline
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Capacity</p>
-                    <p>{selectedProgramme.capacity || "Unlimited"}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Quality Threshold</p>
-                    <p>{selectedProgramme.match_threshold}/100</p>
-                  </div>
-                </div>
+function Stat({ n, l }: { n: string | number; l: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      <span
+        className="t-serif"
+        style={{
+          fontSize: 26,
+          letterSpacing: "-0.02em",
+          lineHeight: 1,
+        }}
+      >
+        {n}
+      </span>
+      <span className="t-meta" style={{ marginTop: 4 }}>
+        {l}
+      </span>
+    </div>
+  );
+}
 
-                {selectedProgramme.prerequisites && (
-                  <div>
-                    <p className="text-gray-500 text-sm">Prerequisites</p>
-                    <p className="text-gray-300 text-sm">
-                      {selectedProgramme.prerequisites}
-                    </p>
-                  </div>
-                )}
+function ProgrammeModal({
+  programme,
+  onClose,
+  eligible,
+  profileScore,
+}: {
+  programme: Programme;
+  onClose: () => void;
+  eligible: boolean;
+  profileScore?: number;
+}) {
+  const fmt = (ts?: Timestamp) =>
+    ts?.toDate?.().toLocaleString("en-MY", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }) ?? "TBD";
 
-                {selectedProgramme.contact_email && (
-                  <div>
-                    <p className="text-gray-500 text-sm">Contact</p>
-                    <p className="text-blue-400 text-sm">
-                      {selectedProgramme.contact_email}
-                    </p>
-                  </div>
-                )}
-
-                {profile.role === "startup" &&
-                  !isEligible(selectedProgramme) && (
-                    <div className="bg-red-900/20 border border-red-800/30 rounded-lg p-3 text-sm text-red-300">
-                      Your quality score ({profile.quality_score || 0}/100)
-                      does not meet the requirement (
-                      {selectedProgramme.match_threshold}/100).
-                    </div>
-                  )}
-              </div>
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(20,18,12,0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 50,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="nx-card"
+        style={{
+          width: "100%",
+          maxWidth: 560,
+          margin: "0 16px",
+          maxHeight: "80vh",
+          overflow: "auto",
+          padding: 28,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 16,
+          }}
+        >
+          <div>
+            <div className="t-eyebrow">
+              {fmt(programme.start_date)} · Nexus
             </div>
+            <h2
+              className="t-serif"
+              style={{
+                fontSize: 36,
+                margin: "6px 0 0",
+                letterSpacing: "-0.02em",
+              }}
+            >
+              {programme.name}
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              all: "unset",
+              cursor: "pointer",
+              color: "var(--ink-3)",
+            }}
+          >
+            {Icon.close}
+          </button>
+        </div>
+
+        <p
+          style={{
+            margin: "18px 0 0",
+            color: "var(--ink-2)",
+            fontSize: 14,
+            lineHeight: 1.55,
+          }}
+        >
+          {programme.description}
+        </p>
+
+        <hr className="nx-rule" style={{ margin: "20px 0" }} />
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 16,
+          }}
+        >
+          <KV k="Start" v={fmt(programme.start_date)} />
+          <KV k="End" v={fmt(programme.end_date)} />
+          <KV k="Venue" v={programme.venue ?? "TBD"} />
+          <KV
+            k="Registration deadline"
+            v={fmt(programme.registration_deadline)}
+          />
+          <KV
+            k="Capacity"
+            v={programme.capacity?.toString() ?? "Unlimited"}
+          />
+          <KV
+            k="Quality threshold"
+            v={`${programme.match_threshold} / 100`}
+          />
+        </div>
+
+        {programme.prerequisites && (
+          <>
+            <div
+              className="t-eyebrow"
+              style={{ marginTop: 18, marginBottom: 4 }}
+            >
+              Prerequisites
+            </div>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13,
+                color: "var(--ink-2)",
+              }}
+            >
+              {programme.prerequisites}
+            </p>
+          </>
+        )}
+
+        {programme.contact_email && (
+          <>
+            <div
+              className="t-eyebrow"
+              style={{ marginTop: 18, marginBottom: 4 }}
+            >
+              Contact
+            </div>
+            <p style={{ margin: 0, fontSize: 13 }}>
+              <a
+                href={`mailto:${programme.contact_email}`}
+                className="nx-link"
+              >
+                {programme.contact_email}
+              </a>
+            </p>
+          </>
+        )}
+
+        {!eligible && (
+          <div
+            style={{
+              marginTop: 18,
+              padding: 12,
+              background: "var(--crimson-soft)",
+              color: "var(--crimson-ink)",
+              borderRadius: "var(--r-md)",
+              fontSize: 13,
+            }}
+          >
+            Your current quality score ({profileScore ?? 0}/100) is below the
+            programme threshold ({programme.match_threshold}/100). Upload a
+            stronger pitch deck or wait for re-evaluation.
           </div>
         )}
       </div>
@@ -307,69 +521,11 @@ export default function ProgrammesPage() {
   );
 }
 
-function ProgrammeCard({
-  programme,
-  registration,
-  onRegister,
-  registering,
-  onViewDetails,
-  formatDate,
-  isRegistered,
-}: {
-  programme: Programme;
-  registration?: ProgrammeRegistration;
-  onRegister: (id: string) => void;
-  registering: boolean;
-  onViewDetails: (prog: Programme) => void;
-  formatDate: (ts?: Timestamp) => string;
-  isRegistered?: boolean;
-}) {
-  const statusColors: Record<string, string> = {
-    pending: "bg-yellow-900/50 text-yellow-300",
-    approved: "bg-green-900/50 text-green-300",
-    rejected: "bg-red-900/50 text-red-300",
-  };
-
+function KV({ k, v }: { k: string; v: string }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <h3 className="font-medium">{programme.name}</h3>
-          <p className="text-sm text-gray-400 mt-1 line-clamp-2">
-            {programme.description}
-          </p>
-          <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500">
-            <span>Start: {formatDate(programme.start_date)}</span>
-            {programme.venue && <span>📍 {programme.venue}</span>}
-          </div>
-        </div>
-        {isRegistered && registration && (
-          <span
-            className={`text-xs px-2 py-1 rounded ${
-              statusColors[registration.status] || "bg-gray-800 text-gray-400"
-            }`}
-          >
-            {registration.status}
-          </span>
-        )}
-      </div>
-      <div className="flex items-center justify-between mt-3">
-        <button
-          onClick={() => onViewDetails(programme)}
-          className="text-xs text-blue-400 hover:text-blue-300"
-        >
-          View Details
-        </button>
-        {!isRegistered && (
-          <button
-            onClick={() => onRegister(programme.id)}
-            disabled={registering}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-3 py-1.5 rounded text-xs font-medium transition-colors"
-          >
-            {registering ? "..." : "Register"}
-          </button>
-        )}
-      </div>
+    <div>
+      <div className="t-label">{k}</div>
+      <div style={{ fontSize: 13, marginTop: 4 }}>{v}</div>
     </div>
   );
 }
