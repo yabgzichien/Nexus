@@ -194,6 +194,13 @@ export default function AccountPage() {
               updateData.quality_summary = data.quality_summary;
             }
             await updateProfile(updateData);
+
+            // Fire and forget — generate embedding with updated tags
+            fetch("/api/embed-profile", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userId: user.uid }),
+            }).catch((err) => console.error("Embed failed:", err));
           }
         }
       } catch (apiError) {
