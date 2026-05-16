@@ -2,38 +2,73 @@
 
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase";
 import NavBar from "@/components/NavBar";
+
+const INDUSTRY_OPTIONS = [
+  "Fintech",
+  "HealthTech",
+  "EdTech",
+  "CleanTech",
+  "Deep Tech",
+  "E-Commerce",
+  "SaaS",
+  "Marketplace",
+  "AI / Machine Learning",
+  "Blockchain / Web3",
+  "Cybersecurity",
+  "IoT / Hardware",
+  "Gaming",
+  "Media / Entertainment",
+  "Agriculture Tech",
+  "PropTech",
+  "Logistics / Supply Chain",
+  "FoodTech",
+  "Travel / Hospitality",
+  "Social Impact",
+  "Other",
+];
 
 export default function ProfilePage() {
   const { user, profile, loading, updateProfile } = useAuth();
   const router = useRouter();
 
-  const [name, setName] = useState("");
-  const [bio, setBio] = useState("");
-  const [industry, setIndustry] = useState("");
-  const [stage, setStage] = useState("");
-  const [expertiseAreas, setExpertiseAreas] = useState("");
-  const [yearsExperience, setYearsExperience] = useState("");
-  const [pastMentoring, setPastMentoring] = useState("");
+  const [form, setForm] = useState({
+    name: "",
+    bio: "",
+    industry: "",
+    customIndustry: "",
+    stage: "",
+    expertiseAreas: "",
+    yearsExperience: "",
+    pastMentoring: "",
+    deckUploaded: false,
+  });
   const [uploading, setUploading] = useState(false);
-  const [deckUploaded, setDeckUploaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const initialized = useRef(false);
+
+  const isOtherIndustry = form.industry === "Other" || (form.industry && !INDUSTRY_OPTIONS.includes(form.industry));
 
   useEffect(() => {
     if (!loading && !user) router.push("/");
-    if (profile) {
-      setName(profile.name || "");
-      setBio(profile.bio || "");
-      setIndustry(profile.industry || "");
-      if (profile.role === "mentor") {
-        setExpertiseAreas(profile.expertise_areas?.join(", ") || "");
-        setYearsExperience(profile.years_experience?.toString() || "");
-        setPastMentoring(profile.past_mentoring || "");
-      }
-      if (profile.pitch_deck_url) setDeckUploaded(true);
+    if (profile && !initialized.current) {
+      initialized.current = true;
+      const profileIndustry = profile.industry || "";
+      const isOther = profileIndustry && !INDUSTRY_OPTIONS.includes(profileIndustry);
+      setForm({
+        name: profile.name || "",
+        bio: profile.bio || "",
+        industry: isOther ? "Other" : profileIndustry,
+        customIndustry: isOther ? profileIndustry : "",
+        stage: "",
+        expertiseAreas: profile.role === "mentor" ? (profile.expertise_areas?.join(", ") || "") : "",
+        yearsExperience: profile.role === "mentor" ? (profile.years_experience?.toString() || "") : "",
+        pastMentoring: profile.role === "mentor" ? (profile.past_mentoring || "") : "",
+        deckUploaded: !!profile.pitch_deck_url,
+      });
     }
   }, [profile, loading, user, router]);
 
@@ -46,20 +81,21 @@ export default function ProfilePage() {
     await uploadBytes(storageRef, file);
     const url = await getDownloadURL(storageRef);
     await updateProfile({ pitch_deck_url: url });
-    setDeckUploaded(true);
+    setForm((prev) => ({ ...prev, deckUploaded: true }));
     setUploading(false);
   };
 
   const handleSave = async () => {
     setSaving(true);
-    const data: Record<string, unknown> = { name, bio, industry };
+    const finalIndustry = form.industry === "Other" ? form.customIndustry : form.industry;
+    const data: Record<string, unknown> = { name: form.name, bio: form.bio, industry: finalIndustry };
 
     if (profile?.role === "startup") {
-      data.stage = stage;
+      data.stage = form.stage;
     } else if (profile?.role === "mentor") {
-      data.expertise_areas = expertiseAreas.split(",").map((s) => s.trim()).filter(Boolean);
-      data.years_experience = parseInt(yearsExperience) || 0;
-      data.past_mentoring = pastMentoring;
+      data.expertise_areas = form.expertiseAreas.split(",").map((s) => s.trim()).filter(Boolean);
+      data.years_experience = parseInt(form.yearsExperience) || 0;
+      data.past_mentoring = form.pastMentoring;
     }
 
     await updateProfile(data);
@@ -82,8 +118,8 @@ export default function ProfilePage() {
             <label className="block text-sm text-gray-400 mb-1">Name</label>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={form.name}
+              onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none"
             />
           </div>
@@ -91,8 +127,8 @@ export default function ProfilePage() {
           <div>
             <label className="block text-sm text-gray-400 mb-1">Bio</label>
             <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
+              value={form.bio}
+              onChange={(e) => setForm((prev) => ({ ...prev, bio: e.target.value }))}
               rows={3}
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none"
             />
@@ -100,13 +136,32 @@ export default function ProfilePage() {
 
           <div>
             <label className="block text-sm text-gray-400 mb-1">Industry</label>
-            <input
-              type="text"
-              value={industry}
-              onChange={(e) => setIndustry(e.target.value)}
-              placeholder="e.g. Fintech, HealthTech, EdTech"
+            <select
+              value={isOtherIndustry ? "Other" : form.industry}
+              onChange={(e) => {
+                const val = e.target.value;
+                setForm((prev) => ({
+                  ...prev,
+                  industry: val,
+                  customIndustry: val !== "Other" ? "" : prev.customIndustry,
+                }));
+              }}
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none"
-            />
+            >
+              <option value="">Select industry</option>
+              {INDUSTRY_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+            {isOtherIndustry && (
+              <input
+                type="text"
+                value={form.customIndustry}
+                onChange={(e) => setForm((prev) => ({ ...prev, customIndustry: e.target.value }))}
+                placeholder="Enter your industry"
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 mt-2 focus:border-blue-500 focus:outline-none"
+              />
+            )}
           </div>
 
           {profile.role === "startup" && (
@@ -114,8 +169,8 @@ export default function ProfilePage() {
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Stage</label>
                 <select
-                  value={stage}
-                  onChange={(e) => setStage(e.target.value)}
+                  value={form.stage}
+                  onChange={(e) => setForm((prev) => ({ ...prev, stage: e.target.value }))}
                   className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none"
                 >
                   <option value="">Select stage</option>
@@ -131,7 +186,7 @@ export default function ProfilePage() {
                 <label className="block text-sm text-gray-400 mb-1">Pitch Deck</label>
                 <div className="flex items-center gap-4">
                   <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                    {uploading ? "Uploading..." : deckUploaded ? "Replace Deck" : "Upload PDF"}
+                    {uploading ? "Uploading..." : form.deckUploaded ? "Replace Deck" : "Upload PDF"}
                     <input
                       type="file"
                       accept=".pdf"
@@ -140,7 +195,7 @@ export default function ProfilePage() {
                       disabled={uploading}
                     />
                   </label>
-                  {deckUploaded && (
+                  {form.deckUploaded && (
                     <span className="text-green-400 text-sm">✓ Deck uploaded</span>
                   )}
                 </div>
@@ -219,8 +274,8 @@ export default function ProfilePage() {
                 <label className="block text-sm text-gray-400 mb-1">Expertise Areas</label>
                 <input
                   type="text"
-                  value={expertiseAreas}
-                  onChange={(e) => setExpertiseAreas(e.target.value)}
+                  value={form.expertiseAreas}
+                  onChange={(e) => setForm((prev) => ({ ...prev, expertiseAreas: e.target.value }))}
                   placeholder="e.g. Product Strategy, Fundraising, Go-to-Market"
                   className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none"
                 />
@@ -231,8 +286,8 @@ export default function ProfilePage() {
                 <label className="block text-sm text-gray-400 mb-1">Years of Experience</label>
                 <input
                   type="number"
-                  value={yearsExperience}
-                  onChange={(e) => setYearsExperience(e.target.value)}
+                  value={form.yearsExperience}
+                  onChange={(e) => setForm((prev) => ({ ...prev, yearsExperience: e.target.value }))}
                   className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none"
                 />
               </div>
@@ -240,8 +295,8 @@ export default function ProfilePage() {
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Past Mentoring Experience</label>
                 <textarea
-                  value={pastMentoring}
-                  onChange={(e) => setPastMentoring(e.target.value)}
+                  value={form.pastMentoring}
+                  onChange={(e) => setForm((prev) => ({ ...prev, pastMentoring: e.target.value }))}
                   rows={3}
                   placeholder="Describe your mentoring background..."
                   className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none"
