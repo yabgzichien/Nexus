@@ -25,7 +25,7 @@ export default function PublicProfilePage() {
   const [profileData, setProfileData] = useState<UserProfile | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  const [sentRequest, setSentRequest] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [pendingRequest, setPendingRequest] = useState<ConnectionRequest | null>(null);
   const [processing, setProcessing] = useState(false);
 
@@ -51,21 +51,26 @@ export default function PublicProfilePage() {
       );
       const sentSnap = await getDocs(sentQ);
       if (!sentSnap.empty) {
-        setSentRequest(true);
+        const data = sentSnap.docs[0].data() as ConnectionRequest;
+        setConnectionStatus(data.status);
       }
 
       const receivedQ = query(
         collection(db, "connection_requests"),
         where("sender_id", "==", uid),
-        where("receiver_id", "==", user.uid),
-        where("status", "==", "pending")
+        where("receiver_id", "==", user.uid)
       );
       const receivedSnap = await getDocs(receivedQ);
       if (!receivedSnap.empty) {
-        setPendingRequest({
-          id: receivedSnap.docs[0].id,
-          ...receivedSnap.docs[0].data(),
-        } as ConnectionRequest);
+        const data = receivedSnap.docs[0].data() as ConnectionRequest;
+        if (data.status === "pending") {
+          setPendingRequest({
+            id: receivedSnap.docs[0].id,
+            ...data,
+          } as ConnectionRequest);
+        } else {
+          setConnectionStatus(data.status);
+        }
       }
     };
 
@@ -83,7 +88,7 @@ export default function PublicProfilePage() {
         status: "pending",
         created_at: Timestamp.now(),
       });
-      setSentRequest(true);
+      setConnectionStatus("pending");
     } catch (err) {
       console.error("Failed to send connection request:", err);
     }
@@ -100,6 +105,7 @@ export default function PublicProfilePage() {
         status: "approved",
       });
       setPendingRequest(null);
+      setConnectionStatus("approved");
     } catch (err) {
       console.error("Failed to approve request:", err);
     }
@@ -262,14 +268,16 @@ export default function PublicProfilePage() {
             ) : (
               <button
                 onClick={handleConnect}
-                disabled={connecting || sentRequest}
+                disabled={connecting || connectionStatus === "pending" || connectionStatus === "approved"}
                 className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                  sentRequest
+                  connectionStatus === "pending" || connectionStatus === "approved"
                     ? "bg-gray-700 text-gray-500 cursor-default"
                     : "bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
                 }`}
               >
-                {sentRequest
+                {connectionStatus === "approved"
+                  ? "Connected"
+                  : connectionStatus === "pending"
                   ? "Connection Requested"
                   : connecting
                   ? "Sending..."
